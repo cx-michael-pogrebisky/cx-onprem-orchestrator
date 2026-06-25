@@ -101,8 +101,8 @@ For each engine token `E ∈ {sast, sca, kics, secrets, containers}`:
 | `--E-mode <native\|docker>` | force resolution mode (default: native if on PATH, else docker; SAST native-only; cx engines native-only) |
 | `--E-path <path>` | binary/JAR/script path (native) |
 | `--E-image <ref>` | docker image (digest-pinned via `manifest.lock` by default) |
-| `--sca-resolver <path>` | ScaResolver executable (enables SCA Resolver mode) |
-| `--sca-resolver-arg=<tok>` | raw arg appended to `--sca-resolver-params` (repeatable, `=`-bound) |
+| `--sca-resolver <path>` | ScaResolver executable. **SCA always runs in Resolver mode** — required (or `CXOO_SCA_RESOLVER` in the fat image), else SCA fails with exit 31. |
+| `--sca-resolver-arg=<tok>` | raw arg forwarded to the **ScaResolver** binary via `cx --sca-resolver-params` (repeatable, `=`-bound). Distinct from `--sca-arg`, which targets the **cx** command. See [sca-resolver.md](sca-resolver.md). |
 | `--container-images <csv>` | images for the containers scan |
 
 ## Tier B — raw passthrough

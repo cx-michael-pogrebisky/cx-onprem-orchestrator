@@ -82,6 +82,7 @@ Full details and all use cases: **[docs/authentication.md](docs/authentication.m
 
 ## Documentation
 
+- **[docs/sca-resolver.md](docs/sca-resolver.md)** — SCA is always run via SCA Resolver; how to pass ScaResolver vs cx arguments (`--sca-resolver-arg` vs `--sca-arg`), with examples.
 - **[docs/authentication.md](docs/authentication.md)** — Cx1 API key & client-credentials, CxSAST auth, all use cases.
 - **[docs/reports.md](docs/reports.md)** — artifacts per scanner, the format-support matrix, and `--report-formats` behavior.
 - **[docs/reference.md](docs/reference.md)** — every command, flag, and environment variable.
