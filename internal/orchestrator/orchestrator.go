@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/config"
 	execpkg "github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/exec"
@@ -33,55 +34,89 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 		result  *model.Result
 		verdict *model.Verdict // set early for skip/prereq/config short-circuits
 	}
-	var stages []*staged
+	stages := make([]*staged, len(rc.Scanners))
+	for i, e := range rc.Scanners {
+		stages[i] = &staged{engine: e, cfg: rc.EngineConfigs[e]}
+	}
 
-	// Phase 1: run + collect every engine (barrier: nothing is gated yet).
-	for _, e := range rc.Scanners {
-		st := &staged{engine: e, cfg: rc.EngineConfigs[e]}
-		stages = append(stages, st)
+	// runCtx lets --fail-fast cancel the other in-flight engines on the first
+	// execution error (parallel mode).
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
+	// runStage performs everything up to and including the child scan for one
+	// engine, mutating ONLY its own *staged — so it is safe to run concurrently.
+	runStage := func(st *staged) {
+		e := st.engine
 		if !scanner.Registered(e) {
 			st.verdict = unavailable(rc, e, "no scanner registered for this engine")
-			continue
+			return
 		}
 		sc, err := scanner.Get(e)
 		if err != nil {
 			st.verdict = unavailable(rc, e, err.Error())
-			continue
+			return
 		}
 		st.sc = sc
-
-		if err := sc.Available(ctx, st.cfg); err != nil {
+		if err := sc.Available(runCtx, st.cfg); err != nil {
 			st.verdict = unavailable(rc, e, err.Error())
-			continue
+			return
 		}
-
 		thPlan := rc.Threshold.Partition(e)
 		inv, err := sc.BuildInvocation(st.cfg, thPlan)
 		if err != nil {
-			v := model.Verdict{Engine: e, Pass: false, Category: model.CatConfigError, Message: err.Error()}
-			st.verdict = &v
-			continue
+			st.verdict = &model.Verdict{Engine: e, Category: model.CatConfigError, Message: err.Error()}
+			return
 		}
-
 		if err := os.MkdirAll(inv.OutputDir, 0o755); err != nil {
-			v := model.Verdict{Engine: e, Pass: false, Category: model.CatEngineFailure, Message: fmt.Sprintf("cannot create output dir: %v", err)}
-			st.verdict = &v
-			continue
+			st.verdict = &model.Verdict{Engine: e, Category: model.CatEngineFailure, Message: fmt.Sprintf("cannot create output dir: %v", err)}
+			return
 		}
-
 		opts := execpkg.Options{Display: display, Prefix: fmt.Sprintf("[%s] ", e)}
-		st.result = sc.Run(ctx, inv, opts)
+		st.result = sc.Run(runCtx, inv, opts)
 		st.result.Engine = e
 		st.result.Ran = true
 		st.result.Route = thPlan.Route
-
 		if rc.FailFast && st.result.Err != nil {
-			break
+			cancel() // stop other in-flight engines
 		}
 	}
 
-	// Phase 2: parse + evaluate (gating happens only after the barrier).
+	// Phase 1 (the reports-before-gating barrier): run + collect every engine,
+	// either sequentially (--parallel 0) or up to N concurrently. Concurrency is
+	// safe because each goroutine mutates only its own stage and child output is
+	// serialized line-by-line by internal/exec.
+	conc := rc.Parallel
+	if conc <= 0 {
+		conc = 1
+	}
+	if conc > len(stages) {
+		conc = len(stages)
+	}
+	if conc <= 1 {
+		for _, st := range stages {
+			if rc.FailFast && runCtx.Err() != nil {
+				break
+			}
+			runStage(st)
+		}
+	} else {
+		sem := make(chan struct{}, conc)
+		var wg sync.WaitGroup
+		for _, st := range stages {
+			wg.Add(1)
+			go func(st *staged) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				runStage(st)
+			}(st)
+		}
+		wg.Wait()
+	}
+
+	// Phase 2 (synced, after the barrier): parse + evaluate in deterministic
+	// engine order; the caller then aggregates a single exit code.
 	for _, st := range stages {
 		if st.verdict != nil { // short-circuited (skipped/prereq/config)
 			out.Verdicts = append(out.Verdicts, *st.verdict)
@@ -91,7 +126,7 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 			continue
 		}
 		if st.result == nil {
-			continue // not reached (fail-fast break before some engines ran)
+			continue // not reached (cancelled before this engine started)
 		}
 		thPlan := rc.Threshold.Partition(st.engine)
 		_ = st.sc.ParseResults(ctx, st.result)

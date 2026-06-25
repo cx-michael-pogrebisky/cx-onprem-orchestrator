@@ -73,6 +73,7 @@ type Flags struct {
 	SASTTokenEnv       string
 	SASTSSO            bool
 	SASTJava           string // JDK home or java path for the CxConsolePlugin (Java 11+)
+	SASTTeam           string // CxSAST team/full-path prefix for -ProjectName (e.g. CxServer/SP)
 
 	// Per-engine resolution + passthrough (keyed by scanner token).
 	Mode    map[string]string

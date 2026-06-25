@@ -48,6 +48,11 @@ func (p *prefixWriter) Write(b []byte) (int, error) {
 	return n, nil
 }
 
+// displayMu serializes combined prefix+line writes across ALL engines' writers so
+// that, when engines run in parallel, their log lines never interleave mid-line on
+// the shared display (e.g. os.Stderr).
+var displayMu sync.Mutex
+
 func (p *prefixWriter) emit(line []byte) {
 	if p.redact != nil {
 		line = p.redact(line)
@@ -55,8 +60,12 @@ func (p *prefixWriter) emit(line []byte) {
 	if p.w == nil {
 		return
 	}
-	_, _ = p.w.Write(p.prefix)
-	_, _ = p.w.Write(line)
+	buf := make([]byte, 0, len(p.prefix)+len(line))
+	buf = append(buf, p.prefix...)
+	buf = append(buf, line...)
+	displayMu.Lock()
+	_, _ = p.w.Write(buf)
+	displayMu.Unlock()
 }
 
 // flush writes any trailing partial line (no newline).

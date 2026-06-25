@@ -222,6 +222,7 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 		switch e {
 		case model.EngineSAST:
 			cfg.Extra["sastJava"] = f.SASTJava
+			cfg.Extra["sastTeam"] = f.SASTTeam
 		case model.EngineSCA:
 			cfg.ResolverArgs = f.ScaResolverArgs
 			cfg.Extra["scaResolverPath"] = f.ScaResolverPath

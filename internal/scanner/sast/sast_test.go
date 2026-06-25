@@ -133,6 +133,39 @@ func TestEvaluate_ExitCodes(t *testing.T) {
 	}
 }
 
+func TestTeamProject(t *testing.T) {
+	cases := []struct{ team, project, want string }{
+		{"CxServer/SP", "TnR_Demo", `CxServer\SP\TnR_Demo`},      // forward slashes normalized
+		{`CxServer\SP`, "TnR_Demo", `CxServer\SP\TnR_Demo`},      // already backslash
+		{"/CxServer/SP/", "p", `CxServer\SP\p`},                  // leading/trailing trimmed
+		{"", "p", "p"},                                           // no team -> bare project
+	}
+	for _, c := range cases {
+		if got := teamProject(c.team, c.project); got != c.want {
+			t.Errorf("teamProject(%q,%q) = %q, want %q", c.team, c.project, got, c.want)
+		}
+	}
+}
+
+func TestBuildInvocation_TeamPrefix(t *testing.T) {
+	t.Setenv("CXSAST_USERNAME", "u")
+	t.Setenv("CXSAST_PASSWORD", "p")
+	dir := fakePlugin(t)
+	cfg := &scanner.Config{
+		Engine: model.EngineSAST, Path: filepath.Join(dir, "runCxConsole.sh"),
+		Source: ".", ProjectName: "TnR_Demo", OutputDir: filepath.Join(dir, "out"),
+		SASTServer: "http://cx", SASTUserEnv: "CXSAST_USERNAME", SASTPasswordEnv: "CXSAST_PASSWORD",
+		Extra: map[string]string{"sastTeam": "CxServer/SP"},
+	}
+	inv, err := (&Scanner{}).BuildInvocation(cfg, threshold.Plan{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(inv.Args, " "), `-ProjectName CxServer\SP\TnR_Demo`) {
+		t.Errorf("expected team-qualified project name, got: %s", strings.Join(inv.Args, " "))
+	}
+}
+
 func TestJavaMajorParsing(t *testing.T) {
 	// Indirectly verify the version regex via the documented formats.
 	cases := map[string]int{

@@ -97,7 +97,7 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 
 	args := []string{"-Xmx1024m", "-jar", jarAbs, "Scan",
 		"-CxServer", cfg.SASTServer,
-		"-ProjectName", cfg.ProjectName,
+		"-ProjectName", teamProject(cfg.Extra["sastTeam"], cfg.ProjectName),
 		"-LocationType", "folder",
 		"-LocationPath", srcAbs,
 	}
@@ -236,6 +236,19 @@ func (s *Scanner) Evaluate(r *model.Result, th threshold.Plan) model.Verdict {
 		v.Message = fmt.Sprintf("CxSAST error (exit %d)", r.ChildExitCode)
 	}
 	return v
+}
+
+// teamProject builds the CxSAST -ProjectName. CxSAST requires the project to be
+// qualified by its full team path (e.g. "CxServer\SP\my-proj"); a bare name is
+// rejected with "Invalid project path". The team is normalized to backslash
+// separators (so "CxServer/SP" works) and joined to the project name.
+func teamProject(team, project string) string {
+	team = strings.ReplaceAll(team, "/", "\\")
+	team = strings.Trim(team, "\\")
+	if team == "" {
+		return project
+	}
+	return team + "\\" + project
 }
 
 // sastFormats are the report formats the CxConsolePlugin can emit.
