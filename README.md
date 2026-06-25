@@ -105,3 +105,7 @@ A lossless `run-summary.json` is always written to `--output-path`.
 - **Containers / SCA**: a Cx1 API key.
 
 See [docs/ci.md](docs/ci.md) for ready-to-paste pipeline snippets for all 7 CI systems.
+
+## License
+
+[MIT](LICENSE) © Michael Pogrebisky.
