@@ -1,0 +1,25 @@
+# Build artifacts
+/bin/
+/dist/
+
+# Scan outputs
+/cxoo-reports/
+/reports/
+run-summary.json
+
+# Logs
+*.log
+
+# Local live-test scratch fixtures (unit tests generate their own fixtures)
+/testdata/
+
+# Local env / secrets — never commit
+.env
+.env.local
+*.pem
+*.key
+
+# Editor/OS
+.DS_Store
+.idea/
+.vscode/

@@ -1,0 +1,72 @@
+# goreleaser config for cx-onprem-orchestrator.
+# Produces static, zero-dependency binaries for linux/darwin/windows × amd64/arm64,
+# checksums, a cosign signature, an SBOM, and docker images. Run: `goreleaser release --clean`.
+version: 2
+
+project_name: cx-onprem-orchestrator
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: cx-onprem-orchestrator
+    main: ./cmd/cx-onprem-orchestrator
+    binary: cx-onprem-orchestrator
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/cli.Version={{.Version}}
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: default
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [LICENSE*, README*]
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# Sign the checksums file with cosign (keyless OIDC in CI).
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    args: ["sign-blob", "--yes", "--output-signature=${signature}", "${artifact}"]
+
+sboms:
+  - artifacts: archive
+
+dockers:
+  - id: slim
+    dockerfile: Dockerfile
+    image_templates:
+      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:{{ .Version }}"
+      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:latest"
+    build_flag_templates:
+      - "--build-arg=VERSION={{ .Version }}"
+  - id: fat
+    dockerfile: Dockerfile.fat
+    image_templates:
+      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:{{ .Version }}-fat"
+      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat"
+    build_flag_templates:
+      - "--build-arg=VERSION={{ .Version }}"
+
+# A Homebrew tap (set cx-michael-pogrebisky/tap repo before release).
+brews:
+  - repository:
+      owner: cx-michael-pogrebisky
+      name: homebrew-tap
+    homepage: "https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator"
+    description: "Unified Checkmarx multi-scanner CLI"
+
+release:
+  draft: true

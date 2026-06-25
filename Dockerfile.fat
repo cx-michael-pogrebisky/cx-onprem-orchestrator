@@ -1,0 +1,69 @@
+# Fat image: the batteries-included CI execution path. Bundles the orchestrator
+# plus every v1 engine tool so `cx-onprem-orchestrator run --scanners
+# sast,sca,kics,secrets,containers` works with no extra setup. DAST is NOT bundled
+# (docker-only, post-v1).
+#
+# kics and 2ms (with their query assets) are COPYed from the DIGEST-PINNED official
+# images (same digests as internal/resolve/manifest.lock) — never by mutable tag.
+# cx, ScaResolver, and CxConsolePlugin are fetched at pinned versions.
+#
+# SCA Resolver toolchains: this image bundles a COMMON set (node/npm, python3, Go,
+# Maven, JRE). Exotic stacks should FROM this image and add their toolchain.
+#
+# syntax=docker/dockerfile:1
+
+# Pinned engine images (match manifest.lock).
+FROM checkmarx/kics@sha256:3e5a268eb8adda2e5a483c9359ddfc4cd520ab856a7076dc0b1d8784a37e2602 AS kicsimg
+FROM checkmarx/2ms@sha256:f167f3585a2ff78cc4f2cfe548c75fb1fd220e3c664eb27c01efb878f5d7e4ff AS twomsimg
+
+FROM golang:1.26 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+ARG VERSION=0.0.0-dev
+RUN CGO_ENABLED=0 go build -trimpath \
+      -ldflags "-s -w -X github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/cli.Version=${VERSION}" \
+      -o /out/cx-onprem-orchestrator ./cmd/cx-onprem-orchestrator
+
+# Fetch the non-image tools at pinned versions.
+FROM debian:12-slim AS tools
+ARG CX_VERSION=2.3.54
+ARG CXPLUGIN_VERSION=1.1.41
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates unzip tar && rm -rf /var/lib/apt/lists/*
+WORKDIR /tools
+# DL is a resilient downloader: retry transient failures, bound connect/total time.
+ENV DL="curl -fsSL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 30 --max-time 900"
+RUN $DL "https://github.com/Checkmarx/ast-cli/releases/download/${CX_VERSION}/ast-cli_${CX_VERSION}_linux_x64.tar.gz" -o cx.tgz \
+    && tar -xzf cx.tgz cx && chmod +x cx && rm cx.tgz
+RUN $DL "https://sca-downloads.s3.amazonaws.com/cli/latest/ScaResolver-linux64.tar.gz" -o sca.tgz \
+    && tar -xzf sca.tgz && rm sca.tgz
+RUN $DL "https://download.checkmarx.com/9.5.0/Plugins/CxConsolePlugin-${CXPLUGIN_VERSION}.zip" -o cxplugin.zip \
+    && mkdir -p /opt/cxconsole && unzip -q cxplugin.zip -d /opt/cxconsole && rm cxplugin.zip \
+    && chmod +x /opt/cxconsole/runCxConsole.sh
+
+# --- runtime ----------------------------------------------------------------
+FROM debian:12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates git \
+      default-jre-headless \
+      nodejs npm python3 python3-pip golang-go maven \
+    && rm -rf /var/lib/apt/lists/*
+# default-jre on debian 12 is JRE 17 (>= 11, satisfies CxConsolePlugin).
+
+COPY --from=build  /out/cx-onprem-orchestrator       /usr/local/bin/cx-onprem-orchestrator
+COPY --from=tools  /tools/cx                          /usr/local/bin/cx
+COPY --from=tools  /tools/ScaResolver                 /opt/sca/ScaResolver
+COPY --from=tools  /tools/Configuration.yml           /opt/sca/Configuration.yml
+COPY --from=tools  /opt/cxconsole/                    /opt/cxconsole/
+COPY --from=kicsimg /app/bin/kics                     /usr/local/bin/kics
+COPY --from=kicsimg /app/bin/assets                   /opt/kics/assets
+COPY --from=twomsimg /app/2ms                         /usr/local/bin/2ms
+
+# Defaults so engines resolve without extra flags inside this image. The
+# orchestrator reads CXOO_KICS_QUERIES_PATH and passes `kics -q` in native mode.
+ENV CXOO_SCA_RESOLVER=/opt/sca/ScaResolver \
+    CXOO_SAST_PATH=/opt/cxconsole/runCxConsole.sh \
+    CXOO_KICS_QUERIES_PATH=/opt/kics/assets/queries
+WORKDIR /work
+ENTRYPOINT ["/usr/local/bin/cx-onprem-orchestrator"]

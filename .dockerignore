@@ -1,0 +1,6 @@
+bin/
+dist/
+*.log
+testdata/sca-sample/node_modules/
+.git/
+cxoo-reports/
