@@ -17,6 +17,14 @@ const (
 	ProviderBamboo    Provider = "bamboo"
 	ProviderBitbucket Provider = "bitbucket"
 	ProviderJenkins   Provider = "jenkins"
+	ProviderBuildkite Provider = "buildkite"
+	ProviderCircleCI  Provider = "circleci"
+	ProviderCodeBuild Provider = "codebuild"
+	ProviderTravis    Provider = "travis"
+	ProviderDrone     Provider = "drone"
+	ProviderSemaphore Provider = "semaphore"
+	ProviderAppVeyor  Provider = "appveyor"
+	ProviderCodefresh Provider = "codefresh"
 	ProviderLocal     Provider = "local"
 )
 
@@ -93,8 +101,82 @@ func Detect(env EnvFunc, git GitFunc) Context {
 			Repo:      env("GIT_URL"),
 			Workspace: env("WORKSPACE"),
 		}
+	case strings.EqualFold(env("BUILDKITE"), "true"):
+		return Context{
+			Provider:  ProviderBuildkite,
+			Branch:    env("BUILDKITE_BRANCH"),
+			Commit:    env("BUILDKITE_COMMIT"),
+			Repo:      env("BUILDKITE_REPO"),
+			Workspace: env("BUILDKITE_BUILD_CHECKOUT_PATH"),
+		}
+	case strings.EqualFold(env("CIRCLECI"), "true"):
+		return Context{
+			Provider:  ProviderCircleCI,
+			Branch:    env("CIRCLE_BRANCH"),
+			Commit:    env("CIRCLE_SHA1"),
+			Repo:      env("CIRCLE_REPOSITORY_URL"),
+			Workspace: env("CIRCLE_WORKING_DIRECTORY"),
+		}
+	case set("CODEBUILD_BUILD_ID"):
+		// AWS CodeBuild: WEBHOOK_HEAD_REF is refs/heads/<branch> on webhook builds;
+		// SOURCE_VERSION is a fallback (may be a commit/branch/tag).
+		return Context{
+			Provider:  ProviderCodeBuild,
+			Branch:    refName(firstNonEmpty(env("CODEBUILD_WEBHOOK_HEAD_REF"), env("CODEBUILD_SOURCE_VERSION"))),
+			Commit:    env("CODEBUILD_RESOLVED_SOURCE_VERSION"),
+			Repo:      env("CODEBUILD_SOURCE_REPO_URL"),
+			Workspace: env("CODEBUILD_SRC_DIR"),
+		}
+	case strings.EqualFold(env("TRAVIS"), "true"):
+		return Context{
+			Provider:  ProviderTravis,
+			Branch:    firstNonEmpty(env("TRAVIS_PULL_REQUEST_BRANCH"), env("TRAVIS_BRANCH")),
+			Commit:    env("TRAVIS_COMMIT"),
+			Repo:      env("TRAVIS_REPO_SLUG"),
+			Workspace: env("TRAVIS_BUILD_DIR"),
+		}
+	case strings.EqualFold(env("DRONE"), "true"):
+		return Context{
+			Provider:  ProviderDrone,
+			Branch:    firstNonEmpty(env("DRONE_COMMIT_BRANCH"), env("DRONE_BRANCH")),
+			Commit:    env("DRONE_COMMIT_SHA"),
+			Repo:      firstNonEmpty(env("DRONE_GIT_HTTP_URL"), env("DRONE_REPO_LINK")),
+			Workspace: env("DRONE_WORKSPACE"),
+		}
+	case strings.EqualFold(env("SEMAPHORE"), "true"):
+		return Context{
+			Provider:  ProviderSemaphore,
+			Branch:    env("SEMAPHORE_GIT_BRANCH"),
+			Commit:    env("SEMAPHORE_GIT_SHA"),
+			Repo:      firstNonEmpty(env("SEMAPHORE_GIT_REPO_SLUG"), env("SEMAPHORE_GIT_URL")),
+			Workspace: env("SEMAPHORE_GIT_DIR"),
+		}
+	case strings.EqualFold(env("APPVEYOR"), "true"):
+		return Context{
+			Provider:  ProviderAppVeyor,
+			Branch:    env("APPVEYOR_REPO_BRANCH"),
+			Commit:    env("APPVEYOR_REPO_COMMIT"),
+			Repo:      env("APPVEYOR_REPO_NAME"),
+			Workspace: env("APPVEYOR_BUILD_FOLDER"),
+		}
+	case set("CF_BUILD_ID"):
+		return Context{
+			Provider:  ProviderCodefresh,
+			Branch:    env("CF_BRANCH"),
+			Commit:    env("CF_REVISION"),
+			Repo:      env("CF_COMMIT_URL"),
+			Workspace: env("CF_VOLUME_PATH"),
+		}
 	default:
-		return Context{Provider: ProviderLocal}
+		// Unknown / unsupported CI (e.g. Google Cloud Build, Woodpecker): honor the
+		// generic CXSCAN_* overrides so any environment can still supply context.
+		return Context{
+			Provider:  ProviderLocal,
+			Branch:    env("CXSCAN_BRANCH"),
+			Commit:    env("CXSCAN_COMMIT"),
+			Repo:      env("CXSCAN_REPO"),
+			Workspace: env("CXSCAN_WORKSPACE"),
+		}
 	}
 }
 

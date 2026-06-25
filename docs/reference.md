@@ -94,6 +94,9 @@ See [authentication.md](authentication.md). API key is default; supplying
 
 ## Tier C — tool resolution (per engine)
 
+> These flags are mainly for the **non-fat-image** (self-managed tools) path, which
+> is [not recommended](ci.md#image-choice). The fat image resolves everything for you.
+
 For each engine token `E ∈ {sast, sca, kics, secrets, containers}`:
 
 | Flag | Description |
@@ -127,8 +130,8 @@ forwarded verbatim **after** the wrapper-translated args. Examples:
 | `CXOO_SCA_RESOLVER` | SCA | default `--sca-resolver` path (set in the fat image) |
 | `CXOO_SAST_PATH` | SAST | default `--sast-path` (set in the fat image) |
 | `CXOO_KICS_QUERIES_PATH` | KICS | native-mode query assets path (set in the fat image) |
-| `CXSCAN_BRANCH` / `CXSCAN_REPO` / `CXSCAN_WORKSPACE` | CI detect | explicit overrides (e.g. for TeamCity) |
-| CI-provider vars | CI detect | branch/commit/repo/workspace — see [ci.md](ci.md) |
+| `CXSCAN_BRANCH` / `CXSCAN_COMMIT` / `CXSCAN_REPO` / `CXSCAN_WORKSPACE` | CI detect | explicit context overrides; honored for TeamCity and for any **undetected** CI (e.g. Google Cloud Build, Woodpecker) |
+| CI-provider vars | CI detect | branch/commit/repo/workspace for 15 auto-detected systems — see [ci.md](ci.md) |
 
 ## Exit codes
 

@@ -52,7 +52,7 @@ jobs:
           echo "repo=$repo" >> "$GITHUB_OUTPUT"
           echo "ver=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
       - name: Build & push slim image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile
@@ -62,7 +62,7 @@ jobs:
             ${{ steps.refs.outputs.repo }}:${{ steps.refs.outputs.ver }}
             ${{ steps.refs.outputs.repo }}:latest
       - name: Build & push fat image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
           file: Dockerfile.fat

@@ -15,24 +15,44 @@ Bamboo, GitHub Actions, GitLab, Azure DevOps, and Bitbucket.
 | Container Security | `containers` | `cx scan create --scan-types container-security` | pass-through `cx --threshold` |
 | DAST | `dast` | *(post-v1)* | — |
 
-## Install
+## Install — use the fat image (recommended)
+
+**The fat image is the recommended way to run this tool.** It bundles the
+orchestrator **plus every engine tool** (`cx`, `ScaResolver`, `kics`, `2ms`,
+`CxConsolePlugin`, Java 21) — all **digest-pinned** — so the five engines work with
+**no extra setup**:
 
 ```bash
-# Static binary (Linux/macOS/Windows × amd64/arm64) from GitHub Releases:
-curl -sSfL https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/releases/download/vX.Y.Z/cx-onprem-orchestrator_linux_amd64.tar.gz | tar xz
-# Or the batteries-included fat image (bundles cx, ScaResolver, kics, 2ms, CxConsolePlugin, Java):
-docker run --rm -v "$PWD":/work ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat run --scanners kics ...
+docker run --rm -v "$PWD":/work -w /work \
+  -e CX1_APIKEY -e CXSAST_URL -e CXSAST_USERNAME -e CXSAST_PASSWORD \
+  ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat \
+  run --scanners sast,sca,kics,secrets,containers --threshold "sast-critical=1;sca-high=5"
 ```
 
+<details>
+<summary><b>Advanced (not recommended): slim image / standalone binary</b></summary>
+
+You *can* instead grab the static binary or the slim image and install/version-manage
+`cx`, `ScaResolver` (+`Configuration.yml`), `kics` (+queries), `2ms`,
+`CxConsolePlugin`, and **Java 11+** on each agent yourself — but this is a
+**significantly less recommended** path (more moving parts, version drift, lost digest
+pinning). See [docs/ci.md → Image choice](docs/ci.md#image-choice).
+
+```bash
+curl -sSfL https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/releases/download/v0.1.0/cx-onprem-orchestrator_linux_amd64.tar.gz | tar xz
+```
+</details>
+
 ## Quickstart
+
+Inside the fat image, tool paths are pre-set (`CXOO_SCA_RESOLVER`, `CXOO_SAST_PATH`,
+KICS queries), so a run is just engines + threshold:
 
 ```bash
 cx-onprem-orchestrator run \
   --scanners sast,sca,kics,secrets,containers \
   --threshold "sast-critical=1;sca-high=5;iac-security-low=10;secrets-total=1;containers-high=3" \
-  --file-filter "!**/**,**/src/**" --use-gitignore \
-  --sca-resolver /opt/sca/ScaResolver \
-  --sast-path /opt/cxconsole/runCxConsole.sh --sast-java "$JAVA_HOME_11"
+  --file-filter "!**/**,**/src/**" --use-gitignore
 ```
 
 Use `validate` (alias `run --dry-run`) to print the exact native argv per engine
