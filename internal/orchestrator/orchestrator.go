@@ -68,6 +68,7 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 			st.verdict = &model.Verdict{Engine: e, Category: model.CatConfigError, Message: err.Error()}
 			return
 		}
+		inv.Timeout = st.cfg.Timeout // per-engine --<engine>-timeout (0 = none)
 		if err := os.MkdirAll(inv.OutputDir, 0o755); err != nil {
 			st.verdict = &model.Verdict{Engine: e, Category: model.CatEngineFailure, Message: fmt.Sprintf("cannot create output dir: %v", err)}
 			return

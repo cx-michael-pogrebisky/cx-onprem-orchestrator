@@ -85,6 +85,10 @@ type Flags struct {
 	// the global --report-formats (keyed by scanner token; CSV value).
 	ReportFormatsOverride map[string]string
 
+	// EngineTimeout bounds a single engine's run (keyed by scanner token; Go
+	// duration string, e.g. "8m"). Empty/"0" = no per-engine bound.
+	EngineTimeout map[string]string
+
 	// Engine-specific inputs.
 	ScaResolverPath string
 	ScaResolverArgs []string

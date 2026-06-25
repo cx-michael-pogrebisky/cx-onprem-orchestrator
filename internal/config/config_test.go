@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/ci"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/model"
@@ -89,6 +90,23 @@ func TestResolve_PerEngineReportFormatsOverride(t *testing.T) {
 	kics := rc.EngineConfigs[model.EngineIaC]
 	if kics == nil || len(kics.ReportFormats) != 2 {
 		t.Errorf("kics should keep the global [json,sarif], got %v", kics.ReportFormats)
+	}
+}
+
+func TestResolve_PerEngineTimeout(t *testing.T) {
+	// Valid duration threads through to the engine config.
+	f := Flags{Scanners: "sca", EngineTimeout: map[string]string{"sca": "8m"}}
+	rc, err := Resolve(f, testEnv(nil), ci.Context{Provider: ci.ProviderLocal})
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if got := rc.EngineConfigs[model.EngineSCA].Timeout; got != 8*time.Minute {
+		t.Errorf("sca timeout = %v, want 8m", got)
+	}
+	// Invalid duration is a config error.
+	bad := Flags{Scanners: "sca", EngineTimeout: map[string]string{"sca": "8minutes"}}
+	if _, err := Resolve(bad, testEnv(nil), ci.Context{Provider: ci.ProviderLocal}); err == nil {
+		t.Errorf("expected invalid --sca-timeout to error")
 	}
 }
 

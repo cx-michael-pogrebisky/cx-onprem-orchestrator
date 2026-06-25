@@ -1,6 +1,7 @@
 package sca
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -86,5 +87,37 @@ func TestEvaluate_PassThroughCodes(t *testing.T) {
 	v = s.Evaluate(&model.Result{Engine: model.EngineSCA, ChildExitCode: 3}, plan)
 	if v.Category != model.CatEngineFailure {
 		t.Errorf("exit 3 should be engine failure, got %+v", v)
+	}
+}
+
+func TestEvaluate_ExportStallIsNotABreach(t *testing.T) {
+	s := &Scanner{}
+	set, _ := threshold.Parse("sca-critical=1")
+	plan := set.Partition(model.EngineSCA)
+
+	// A stalled Cx1 export makes cx exit 1, but with a clause that would normally
+	// be read as a breach. It must instead be an engine failure (gate not faked).
+	r := &model.Result{
+		Engine:        model.EngineSCA,
+		ChildExitCode: 1,
+		Stderr:        []byte("Failed listing results: export generating failed - Timed out after 5 minutes"),
+	}
+	if v := s.Evaluate(r, plan); v.Category != model.CatEngineFailure {
+		t.Errorf("export stall must be engine failure, not %s: %+v", v.Category, v)
+	}
+	if v := s.Evaluate(r, plan); v.Pass {
+		t.Errorf("export stall must not pass")
+	}
+
+	// Per-engine timeout firing (context deadline, exit 130) is also a stall, not a breach.
+	r2 := &model.Result{Engine: model.EngineSCA, ChildExitCode: 130, Err: context.DeadlineExceeded}
+	v := s.Evaluate(r2, plan)
+	if v.Category != model.CatEngineFailure || !strings.Contains(v.Message, "--sca-timeout") {
+		t.Errorf("timeout should be engine failure mentioning --sca-timeout, got %+v", v)
+	}
+
+	// A genuine breach (exit 1, no stall signature) is still a breach.
+	if v := s.Evaluate(&model.Result{Engine: model.EngineSCA, ChildExitCode: 1}, plan); v.Category != model.CatThresholdBreach {
+		t.Errorf("real breach should remain a breach, got %+v", v)
 	}
 }
