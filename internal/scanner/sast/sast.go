@@ -119,9 +119,15 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 		args = append(args, "-LocationFilesExclude", strings.Join(names.Files, ","))
 	}
 
-	// XML report for wrapper-side count recovery + summary.
-	reportPath := filepath.Join(outAbs, reportName+".xml")
-	args = append(args, "-ReportXML", reportPath)
+	// Reports. XML is mandatory (wrapper-side count recovery + summary); CxSAST can
+	// additionally emit PDF/CSV/RTF. SelectFormats warns on unsupported requests
+	// (e.g. json/sarif — the CxConsolePlugin does not produce those).
+	formats, fmtWarn := scanner.SelectFormats(cfg.ReportFormats, sastFormats, "xml")
+	for _, f := range formats {
+		if flag, ok := sastReportFlag(f); ok {
+			args = append(args, flag, filepath.Join(outAbs, reportName+"."+f))
+		}
+	}
 
 	args = append(args, cfg.RawArgs...)
 
@@ -131,7 +137,7 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 		Args:      args,
 		WorkDir:   pluginDir, // so the jar's Class-Path lib/ resolves
 		OutputDir: outAbs,
-		Warnings:  names.Warnings,
+		Warnings:  append(append([]string{}, names.Warnings...), fmtWarn...),
 	}
 	return inv, nil
 }
@@ -158,9 +164,8 @@ func (s *Scanner) Run(ctx context.Context, inv *model.Invocation, opts execpkg.O
 	r := scanner.RunInvocation(ctx, inv, opts)
 	r.Route = model.RoutePassthrough
 	r.Warnings = inv.Warnings
-	p := filepath.Join(inv.OutputDir, reportName+".xml")
-	if _, err := os.Stat(p); err == nil {
-		r.ReportPaths = []string{p}
+	if m, _ := filepath.Glob(filepath.Join(inv.OutputDir, reportName+".*")); len(m) > 0 {
+		r.ReportPaths = m
 	}
 	return r
 }
@@ -176,10 +181,11 @@ type cxXMLResults struct {
 }
 
 func (s *Scanner) ParseResults(_ context.Context, r *model.Result) error {
-	if len(r.ReportPaths) == 0 {
+	xmlPath := filepath.Join(r.OutputDir, reportName+".xml")
+	if _, statErr := os.Stat(xmlPath); statErr != nil {
 		return nil // report may be absent on engine failure; gating falls back to exit code
 	}
-	data, err := os.ReadFile(r.ReportPaths[0])
+	data, err := os.ReadFile(xmlPath)
 	if err != nil {
 		return fmt.Errorf("read sast report: %w", err)
 	}
@@ -230,6 +236,25 @@ func (s *Scanner) Evaluate(r *model.Result, th threshold.Plan) model.Verdict {
 		v.Message = fmt.Sprintf("CxSAST error (exit %d)", r.ChildExitCode)
 	}
 	return v
+}
+
+// sastFormats are the report formats the CxConsolePlugin can emit.
+var sastFormats = map[string]bool{"xml": true, "pdf": true, "csv": true, "rtf": true}
+
+// sastReportFlag maps a report format to its CxConsolePlugin -Report* flag.
+func sastReportFlag(format string) (string, bool) {
+	switch format {
+	case "xml":
+		return "-ReportXML", true
+	case "pdf":
+		return "-ReportPDF", true
+	case "csv":
+		return "-ReportCSV", true
+	case "rtf":
+		return "-ReportRTF", true
+	default:
+		return "", false
+	}
 }
 
 // sastCapFlag maps a severity to its CxConsolePlugin cap flag.

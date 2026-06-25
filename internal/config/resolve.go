@@ -130,16 +130,33 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 			IgnoreOnExit: firstNonEmpty(f.IgnoreOnExit, "none"),
 		},
 		Auth: AuthConfig{
-			CxAPIKeyEnv:     firstNonEmpty(f.CxAPIKeyEnv, DefaultCxAPIKeyEnv),
-			CxBaseURI:       f.CxBaseURI,
-			CxBaseAuthURI:   f.CxBaseAuthURI,
-			CxTenant:        f.CxTenant,
-			SASTServer:      firstNonEmpty(f.SASTServer, env(DefaultSASTServerEnv)),
-			SASTUserEnv:     firstNonEmpty(f.SASTUserEnv, DefaultSASTUserEnv),
-			SASTPasswordEnv: firstNonEmpty(f.SASTPasswordEnv, DefaultSASTPasswordEnv),
-			SASTTokenEnv:    f.SASTTokenEnv,
-			SASTSSO:         f.SASTSSO,
+			CxAPIKeyEnv:        firstNonEmpty(f.CxAPIKeyEnv, DefaultCxAPIKeyEnv),
+			CxBaseURI:          f.CxBaseURI,
+			CxBaseAuthURI:      f.CxBaseAuthURI,
+			CxTenant:           f.CxTenant,
+			CxClientID:         f.CxClientID,
+			CxClientSecretEnv:  f.CxClientSecretEnv,
+			CxClientSecretFile: f.CxClientSecretFile,
+			SASTServer:         firstNonEmpty(f.SASTServer, env(DefaultSASTServerEnv)),
+			SASTUserEnv:        firstNonEmpty(f.SASTUserEnv, DefaultSASTUserEnv),
+			SASTPasswordEnv:    firstNonEmpty(f.SASTPasswordEnv, DefaultSASTPasswordEnv),
+			SASTTokenEnv:       f.SASTTokenEnv,
+			SASTSSO:            f.SASTSSO,
 		},
+	}
+
+	// Fat-image defaults: the bundled tools export their locations so the image
+	// works without extra flags. Explicit flags always win.
+	if f.ScaResolverPath == "" {
+		f.ScaResolverPath = env("CXOO_SCA_RESOLVER")
+	}
+	if v := env("CXOO_SAST_PATH"); v != "" {
+		if f.Path == nil {
+			f.Path = map[string]string{}
+		}
+		if f.Path["sast"] == "" {
+			f.Path["sast"] = v
+		}
 	}
 
 	// Source: flag > CI workspace > ".".
@@ -189,15 +206,18 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 			ContainersPackageFilter:    rc.Filters.ContainersPackage,
 			ContainersImageTagFilter:   rc.Filters.ContainersImageTag,
 
-			CxAPIKeyEnv:     rc.Auth.CxAPIKeyEnv,
-			CxBaseURI:       rc.Auth.CxBaseURI,
-			CxBaseAuthURI:   rc.Auth.CxBaseAuthURI,
-			CxTenant:        rc.Auth.CxTenant,
-			SASTServer:      rc.Auth.SASTServer,
-			SASTUserEnv:     rc.Auth.SASTUserEnv,
-			SASTPasswordEnv: rc.Auth.SASTPasswordEnv,
-			SASTTokenEnv:    rc.Auth.SASTTokenEnv,
-			SASTSSO:         rc.Auth.SASTSSO,
+			CxAPIKeyEnv:        rc.Auth.CxAPIKeyEnv,
+			CxBaseURI:          rc.Auth.CxBaseURI,
+			CxBaseAuthURI:      rc.Auth.CxBaseAuthURI,
+			CxTenant:           rc.Auth.CxTenant,
+			CxClientID:         rc.Auth.CxClientID,
+			CxClientSecretEnv:  rc.Auth.CxClientSecretEnv,
+			CxClientSecretFile: rc.Auth.CxClientSecretFile,
+			SASTServer:         rc.Auth.SASTServer,
+			SASTUserEnv:        rc.Auth.SASTUserEnv,
+			SASTPasswordEnv:    rc.Auth.SASTPasswordEnv,
+			SASTTokenEnv:       rc.Auth.SASTTokenEnv,
+			SASTSSO:            rc.Auth.SASTSSO,
 		}
 		switch e {
 		case model.EngineSAST:

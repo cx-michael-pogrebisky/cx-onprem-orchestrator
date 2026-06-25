@@ -67,13 +67,25 @@ includes-all-then-filters.
 
 ## Authentication (secrets via env, never argv)
 
+The tool reads the *name* of an env var (or a `0600` file) holding each secret and
+injects it into the child process — secrets never appear in argv, logs, or `--dry-run`.
+
 | Env var (default) | Used by | Mapped to |
 |---|---|---|
 | `CX1_APIKEY` | SCA, containers | re-exported as `CX_APIKEY` (auto-derives base-uri/tenant) |
+| `CX_CLIENT_ID` / `CX_CLIENT_SECRET` | SCA, containers | Cx1 **OAuth2 client-credentials** (alt to API key; needs `--cx-base-uri`/`--cx-base-auth-uri`/`--cx-tenant`) |
 | `CXSAST_URL` | CxSAST | `-CxServer` |
 | `CXSAST_USERNAME` / `CXSAST_PASSWORD` | CxSAST | `-CxUser` / `-CxPassword` |
 
-Override the env-var *names* with `--cx-apikey-env`, `--sast-user-env`, etc.
+Cx1 supports two modes — **API key** (default) or **OAuth2 client-credentials**.
+Full details and all use cases: **[docs/authentication.md](docs/authentication.md)**.
+
+## Documentation
+
+- **[docs/authentication.md](docs/authentication.md)** — Cx1 API key & client-credentials, CxSAST auth, all use cases.
+- **[docs/reports.md](docs/reports.md)** — artifacts per scanner, the format-support matrix, and `--report-formats` behavior.
+- **[docs/reference.md](docs/reference.md)** — every command, flag, and environment variable.
+- **[docs/ci.md](docs/ci.md)** — ready-to-paste pipeline snippets for all 7 CI systems.
 
 ## Exit codes (stable contract)
 

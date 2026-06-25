@@ -77,8 +77,8 @@ func TestParse_SecretsAliasing(t *testing.T) {
 		wantLimit int
 	}{
 		{"secrets-total=1", 1},
-		{"secrets=3", 3},        // bare secrets -> total
-		{"secrets-high=5", 5},   // severity collapses to total
+		{"secrets=3", 3},      // bare secrets -> total
+		{"secrets-high=5", 5}, // severity collapses to total
 		{"SECRETS-Critical=2", 2},
 	}
 	for _, tc := range cases {

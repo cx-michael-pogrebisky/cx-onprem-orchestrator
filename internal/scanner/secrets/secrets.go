@@ -28,6 +28,9 @@ const DefaultImage = "checkmarx/2ms:latest"
 
 const reportName = "2ms"
 
+// twomsFormats are the report formats 2ms can emit (inferred from file extension).
+var twomsFormats = map[string]bool{"json": true, "yaml": true, "sarif": true}
+
 func init() {
 	scanner.Register(model.EngineSecrets, func() scanner.Scanner { return &Scanner{} })
 }
@@ -71,8 +74,14 @@ func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 
 func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model.Invocation, error) {
 	tr := filter.ToSecretsIgnorePatterns(filter.ParseGlob(cfg.FileFilter), filter.ParseGlob(cfg.SecretsFilter))
+	// 2ms infers report format from the file extension; json is mandatory (parsing).
+	formats, fmtWarn := scanner.SelectFormats(cfg.ReportFormats, twomsFormats, "json")
 
-	inv := &model.Invocation{Engine: model.EngineSecrets, OutputDir: cfg.OutputDir, Warnings: tr.Warnings}
+	inv := &model.Invocation{
+		Engine:    model.EngineSecrets,
+		OutputDir: cfg.OutputDir,
+		Warnings:  append(append([]string{}, tr.Warnings...), fmtWarn...),
+	}
 
 	switch s.mode(cfg) {
 	case "native":
@@ -80,9 +89,9 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 		if bin == "" {
 			bin = "2ms"
 		}
-		args := []string{"filesystem", "--path", cfg.Source,
-			"--report-path", filepath.Join(cfg.OutputDir, reportName+".json"),
-			"--ignore-on-exit", "results", // wrapper gates
+		args := []string{"filesystem", "--path", cfg.Source, "--ignore-on-exit", "results"}
+		for _, f := range formats {
+			args = append(args, "--report-path", filepath.Join(cfg.OutputDir, reportName+"."+f))
 		}
 		for _, p := range tr.Patterns {
 			args = append(args, "--ignore-pattern", p)
@@ -115,8 +124,10 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 			"-v", outAbs + ":/output",
 			image,
 			"filesystem", "--path", "/repo",
-			"--report-path", "/output/" + reportName + ".json",
 			"--ignore-on-exit", "results",
+		}
+		for _, f := range formats {
+			args = append(args, "--report-path", "/output/"+reportName+"."+f)
 		}
 		for _, p := range tr.Patterns {
 			args = append(args, "--ignore-pattern", p)
@@ -132,9 +143,8 @@ func (s *Scanner) Run(ctx context.Context, inv *model.Invocation, opts execpkg.O
 	r := scanner.RunInvocation(ctx, inv, opts)
 	r.Route = model.RouteWrapperSide
 	r.Warnings = inv.Warnings
-	p := filepath.Join(inv.OutputDir, reportName+".json")
-	if _, err := os.Stat(p); err == nil {
-		r.ReportPaths = []string{p}
+	if m, _ := filepath.Glob(filepath.Join(inv.OutputDir, reportName+".*")); len(m) > 0 {
+		r.ReportPaths = m
 	}
 	return r
 }
@@ -146,12 +156,10 @@ type twomsReport struct {
 }
 
 func (s *Scanner) ParseResults(_ context.Context, r *model.Result) error {
-	if len(r.ReportPaths) == 0 {
-		return nil
-	}
-	data, err := os.ReadFile(r.ReportPaths[0])
+	jsonPath := filepath.Join(r.OutputDir, reportName+".json")
+	data, err := os.ReadFile(jsonPath)
 	if err != nil {
-		return fmt.Errorf("read 2ms report: %w", err)
+		return fmt.Errorf("read 2ms report %s: %w", jsonPath, err)
 	}
 	var rep twomsReport
 	if err := json.Unmarshal(data, &rep); err != nil {

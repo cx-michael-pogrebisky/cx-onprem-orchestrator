@@ -14,8 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/exit"
 	execpkg "github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/exec"
+	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/exit"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/filter"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/model"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/resolve"
@@ -71,8 +71,10 @@ func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 }
 
 func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model.Invocation, error) {
-	formats := ensureJSON(cfg.ReportFormats)
+	// KICS emits any subset of its native formats; json is mandatory (wrapper parsing).
+	formats, fmtWarn := scanner.SelectFormats(cfg.ReportFormats, kicsFormats, "json")
 	tr := filter.ToKICSExcludePaths(filter.ParseGlob(cfg.FileFilter), filter.ParseGlob(cfg.IaCFilter))
+	warnings := append(append([]string{}, tr.Warnings...), fmtWarn...)
 
 	// Common KICS args. We always gate wrapper-side, so --ignore-on-exit=results
 	// keeps the findings-present codes (20-60) non-fatal at the child level.
@@ -90,6 +92,7 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 	inv := &model.Invocation{
 		Engine:    model.EngineIaC,
 		OutputDir: cfg.OutputDir,
+		Warnings:  warnings,
 	}
 
 	switch s.mode(cfg) {
@@ -144,6 +147,7 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 func (s *Scanner) Run(ctx context.Context, inv *model.Invocation, opts execpkg.Options) *model.Result {
 	r := scanner.RunInvocation(ctx, inv, opts)
 	r.Route = model.RouteWrapperSide
+	r.Warnings = inv.Warnings
 	r.ReportPaths = collectReports(inv.OutputDir)
 	return r
 }
@@ -202,25 +206,15 @@ func (s *Scanner) Evaluate(r *model.Result, th threshold.Plan) model.Verdict {
 	return v
 }
 
-func ensureJSON(formats []string) []string {
-	if len(formats) == 0 {
-		return []string{"json", "sarif"}
-	}
-	for _, f := range formats {
-		if strings.EqualFold(f, "json") {
-			return formats
-		}
-	}
-	return append([]string{"json"}, formats...)
+// kicsFormats are the report formats KICS can emit (native token == unified token).
+var kicsFormats = map[string]bool{
+	"json": true, "sarif": true, "html": true, "pdf": true, "csv": true,
+	"junit": true, "sonarqube": true, "cyclonedx": true, "asff": true,
+	"codeclimate": true, "glsast": true,
 }
 
+// collectReports globs every artifact KICS wrote for our report base name.
 func collectReports(dir string) []string {
-	var out []string
-	for _, ext := range []string{"json", "sarif", "html", "csv", "junit"} {
-		p := filepath.Join(dir, reportName+"."+ext)
-		if _, err := os.Stat(p); err == nil {
-			out = append(out, p)
-		}
-	}
-	return out
+	matches, _ := filepath.Glob(filepath.Join(dir, reportName+".*"))
+	return matches
 }

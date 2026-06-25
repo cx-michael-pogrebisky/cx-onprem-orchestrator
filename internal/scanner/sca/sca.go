@@ -54,10 +54,7 @@ func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 	if !hasConfigSibling(resolver) {
 		return fmt.Errorf("ScaResolver requires a Configuration.yml next to %q", resolver)
 	}
-	if os.Getenv(cfg.CxAPIKeyEnv) == "" {
-		return fmt.Errorf("Cx1 API key not set: env %s is empty", cfg.CxAPIKeyEnv)
-	}
-	return nil
+	return scanner.CxAuthAvailable(cfg)
 }
 
 func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*model.Invocation, error) {
@@ -92,19 +89,17 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 	if th.HasClauses() {
 		args = append(args, "--threshold", th.NativeThresholdString())
 	}
-	// Non-secret auth values (the API key itself goes via env).
-	if cfg.CxBaseURI != "" {
-		args = append(args, "--base-uri", cfg.CxBaseURI)
+	// Cx1 auth (API key or OAuth2 client-credentials): non-secret flags appended
+	// here; secret values are injected into the child env below, never argv.
+	authArgs, authEnv, authKeys, err := scanner.CxAuth(cfg)
+	if err != nil {
+		return nil, err
 	}
-	if cfg.CxBaseAuthURI != "" {
-		args = append(args, "--base-auth-uri", cfg.CxBaseAuthURI)
-	}
-	if cfg.CxTenant != "" {
-		args = append(args, "--tenant", cfg.CxTenant)
-	}
-	// Reports.
+	args = append(args, authArgs...)
+	// Reports — cx emits any subset of its formats as a comma list (json mandatory).
+	fmtArg, fmtWarn := scanner.CxReportFormats(cfg.ReportFormats)
 	args = append(args,
-		"--report-format", "json",
+		"--report-format", fmtArg,
 		"--output-name", reportName,
 		"--output-path", cfg.OutputDir,
 	)
@@ -118,11 +113,9 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 		Path:      cxBinary(cfg),
 		Args:      args,
 		OutputDir: cfg.OutputDir,
-	}
-	// Re-export the API key as CX_APIKEY for the cx child (read by name, not logged).
-	if val := os.Getenv(cfg.CxAPIKeyEnv); val != "" {
-		inv.Env = append(inv.Env, "CX_APIKEY="+val)
-		inv.EnvKeys = append(inv.EnvKeys, "CX_APIKEY")
+		Env:       authEnv,
+		EnvKeys:   authKeys,
+		Warnings:  fmtWarn,
 	}
 	return inv, nil
 }
@@ -130,6 +123,7 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 func (s *Scanner) Run(ctx context.Context, inv *model.Invocation, opts execpkg.Options) *model.Result {
 	r := scanner.RunInvocation(ctx, inv, opts)
 	r.Route = model.RoutePassthrough
+	r.Warnings = inv.Warnings
 	r.ReportPaths = collectReports(inv.OutputDir)
 	return r
 }
@@ -173,12 +167,6 @@ func hasConfigSibling(resolver string) bool {
 }
 
 func collectReports(dir string) []string {
-	var out []string
-	for _, ext := range []string{"json", "sarif", "xml"} {
-		p := filepath.Join(dir, reportName+"."+ext)
-		if _, err := os.Stat(p); err == nil {
-			out = append(out, p)
-		}
-	}
-	return out
+	matches, _ := filepath.Glob(filepath.Join(dir, reportName+".*"))
+	return matches
 }

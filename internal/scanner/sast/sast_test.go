@@ -91,7 +91,8 @@ func TestParseResults_XML(t *testing.T) {
 	if err := os.WriteFile(p, []byte(xmlDoc), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	r := &model.Result{Engine: model.EngineSAST, ReportPaths: []string{p}}
+	_ = p
+	r := &model.Result{Engine: model.EngineSAST, OutputDir: dir}
 	if err := (&Scanner{}).ParseResults(context.Background(), r); err != nil {
 		t.Fatalf("parse: %v", err)
 	}

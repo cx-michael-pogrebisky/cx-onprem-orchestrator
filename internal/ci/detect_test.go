@@ -51,7 +51,7 @@ func TestDetect_GitHubContext(t *testing.T) {
 
 func TestDetect_AzureStripsRef(t *testing.T) {
 	ctx := Detect(envFrom(map[string]string{
-		"TF_BUILD":          "True",
+		"TF_BUILD":           "True",
 		"BUILD_SOURCEBRANCH": "refs/heads/feature/tools",
 	}), nil)
 	if ctx.Branch != "feature/tools" {

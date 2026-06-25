@@ -12,11 +12,11 @@ import (
 func TestBuildInvocation_PassThrough(t *testing.T) {
 	t.Setenv("CX1_APIKEY", "secret-value")
 	cfg := &scanner.Config{
-		Engine:                   model.EngineContainers,
-		Source:                   ".",
-		ProjectName:              "demo",
-		Branch:                   "main",
-		OutputDir:                "out/containers",
+		Engine:                     model.EngineContainers,
+		Source:                     ".",
+		ProjectName:                "demo",
+		Branch:                     "main",
+		OutputDir:                  "out/containers",
 		ContainersFileFolderFilter: "!*.log",
 		ContainersPackageFilter:    "^internal-.*",
 		ContainersImageTagFilter:   "!*:dev",

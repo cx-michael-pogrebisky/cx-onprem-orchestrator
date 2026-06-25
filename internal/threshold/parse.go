@@ -11,15 +11,15 @@ import (
 // knownEngines maps an accepted engine token (after alias resolution) to the
 // canonical model.Engine. "kics" aliases to "iac-security" exactly as ast-cli does.
 var engineAliases = map[string]model.Engine{
-	"sast":             model.EngineSAST,
-	"sca":              model.EngineSCA,
-	"iac-security":     model.EngineIaC,
-	"kics":             model.EngineIaC, // ast-cli rewrites kics-* -> iac-security-*
-	"api-security":     model.EngineAPISec,
-	"containers":       model.EngineContainers,
+	"sast":               model.EngineSAST,
+	"sca":                model.EngineSCA,
+	"iac-security":       model.EngineIaC,
+	"kics":               model.EngineIaC, // ast-cli rewrites kics-* -> iac-security-*
+	"api-security":       model.EngineAPISec,
+	"containers":         model.EngineContainers,
 	"container-security": model.EngineContainers,
-	"secrets":          model.EngineSecrets,
-	"dast":             model.EngineDAST,
+	"secrets":            model.EngineSecrets,
+	"dast":               model.EngineDAST,
 }
 
 // severitySuffixes are the recognized "-<severity>" endings, checked when

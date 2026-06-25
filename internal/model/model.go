@@ -160,10 +160,10 @@ type Mount struct {
 // IO beyond stat), so it can be printed by --dry-run and asserted in tests.
 type Invocation struct {
 	Engine       Engine   `json:"engine"`
-	Path         string   `json:"path"`            // binary path OR "docker"
-	Args         []string `json:"args"`            // argv (translated Tier-A + raw Tier-B passthrough)
-	Env          []string `json:"-"`               // child env (e.g. CX_APIKEY); never serialized/logged raw
-	EnvKeys      []string `json:"envKeys"`          // names of env vars injected, for --dry-run display
+	Path         string   `json:"path"`    // binary path OR "docker"
+	Args         []string `json:"args"`    // argv (translated Tier-A + raw Tier-B passthrough)
+	Env          []string `json:"-"`       // child env (e.g. CX_APIKEY); never serialized/logged raw
+	EnvKeys      []string `json:"envKeys"` // names of env vars injected, for --dry-run display
 	WorkDir      string   `json:"workDir,omitempty"`
 	DockerMounts []Mount  `json:"dockerMounts,omitempty"`
 	OutputDir    string   `json:"outputDir"` // wrapper-controlled dir the child writes reports into

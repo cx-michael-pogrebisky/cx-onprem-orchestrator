@@ -65,10 +65,15 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 	fs.DurationVar(&b.f.Timeout, "timeout", 0, "Overall timeout (e.g. 30m); 0 = none")
 
 	// Auth selectors (no secret values).
-	fs.StringVar(&b.f.CxAPIKeyEnv, "cx-apikey-env", "", "Env var holding the Cx1 API key (default CX1_APIKEY; re-exported as CX_APIKEY)")
-	fs.StringVar(&b.f.CxBaseURI, "cx-base-uri", "", "Cx1 base URI (auto-derived from API key if omitted)")
-	fs.StringVar(&b.f.CxBaseAuthURI, "cx-base-auth-uri", "", "Cx1 IAM/auth URI (auto-derived if omitted)")
-	fs.StringVar(&b.f.CxTenant, "cx-tenant", "", "Cx1 tenant (auto-derived if omitted)")
+	// Cx1 auth — mode A: API key (default).
+	fs.StringVar(&b.f.CxAPIKeyEnv, "cx-apikey-env", "", "Env var holding the Cx1 API key (default CX1_APIKEY, falling back to CX_APIKEY; auto-derives base/auth/tenant)")
+	// Cx1 auth — mode B: OAuth2 client-credentials (requires base-uri + base-auth-uri + tenant).
+	fs.StringVar(&b.f.CxClientID, "cx-client-id", "", "Cx1 OAuth2 client ID (or CX_CLIENT_ID); selects client-credentials auth")
+	fs.StringVar(&b.f.CxClientSecretEnv, "cx-client-secret-env", "", "Env var holding the Cx1 OAuth2 client secret (default CX_CLIENT_SECRET)")
+	fs.StringVar(&b.f.CxClientSecretFile, "cx-client-secret-file", "", "File (0600) holding the Cx1 OAuth2 client secret")
+	fs.StringVar(&b.f.CxBaseURI, "cx-base-uri", "", "Cx1 base/system URI, e.g. https://<region>.ast.checkmarx.net (required for client-credentials)")
+	fs.StringVar(&b.f.CxBaseAuthURI, "cx-base-auth-uri", "", "Cx1 IAM/auth URI, e.g. https://<region>.iam.checkmarx.net (required for client-credentials)")
+	fs.StringVar(&b.f.CxTenant, "cx-tenant", "", "Cx1 tenant (required for client-credentials)")
 	fs.StringVar(&b.f.SASTServer, "sast-server", "", "CxSAST server URL -> -CxServer (default $CXSAST_URL)")
 	fs.StringVar(&b.f.SASTUserEnv, "sast-user-env", "", "Env var holding the CxSAST user (default CXSAST_USERNAME)")
 	fs.StringVar(&b.f.SASTPasswordEnv, "sast-password-env", "", "Env var holding the CxSAST password (default CXSAST_PASSWORD)")

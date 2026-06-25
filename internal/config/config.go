@@ -60,16 +60,19 @@ type Flags struct {
 	Timeout   time.Duration
 
 	// Auth selectors (env names / non-secret values only).
-	CxAPIKeyEnv   string
-	CxBaseURI     string
-	CxBaseAuthURI string
-	CxTenant      string
-	SASTServer    string
-	SASTUserEnv   string
-	SASTPasswordEnv string
-	SASTTokenEnv  string
-	SASTSSO       bool
-	SASTJava      string // JDK home or java path for the CxConsolePlugin (Java 11+)
+	CxAPIKeyEnv        string
+	CxBaseURI          string
+	CxBaseAuthURI      string
+	CxTenant           string
+	CxClientID         string
+	CxClientSecretEnv  string
+	CxClientSecretFile string
+	SASTServer         string
+	SASTUserEnv        string
+	SASTPasswordEnv    string
+	SASTTokenEnv       string
+	SASTSSO            bool
+	SASTJava           string // JDK home or java path for the CxConsolePlugin (Java 11+)
 
 	// Per-engine resolution + passthrough (keyed by scanner token).
 	Mode    map[string]string
@@ -85,10 +88,10 @@ type Flags struct {
 
 // RunConfig is the validated, resolved configuration for one run.
 type RunConfig struct {
-	Scanners  []model.Engine
-	Source    string
+	Scanners    []model.Engine
+	Source      string
 	ProjectName string
-	Branch    string
+	Branch      string
 
 	ThresholdRaw string
 	Threshold    threshold.Set
@@ -116,16 +119,16 @@ type RunConfig struct {
 
 // Filters holds the unified filter surface (cx-verbatim names; types preserved).
 type Filters struct {
-	FileFilter               string
-	FileInclude              string
-	UseGitignore             bool
-	SAST                     string
-	SCA                      string // regex
-	IaC                      string
-	ContainersFileFolder     string
-	ContainersPackage        string // regex
-	ContainersImageTag       string // wildcard
-	Secrets                  string
+	FileFilter           string
+	FileInclude          string
+	UseGitignore         bool
+	SAST                 string
+	SCA                  string // regex
+	IaC                  string
+	ContainersFileFolder string
+	ContainersPackage    string // regex
+	ContainersImageTag   string // wildcard
+	Secrets              string
 }
 
 // Output holds report/output configuration.
@@ -138,15 +141,18 @@ type Output struct {
 
 // AuthConfig holds resolved auth selectors (env names + non-secret values).
 type AuthConfig struct {
-	CxAPIKeyEnv     string
-	CxBaseURI       string
-	CxBaseAuthURI   string
-	CxTenant        string
-	SASTServer      string
-	SASTUserEnv     string
-	SASTPasswordEnv string
-	SASTTokenEnv    string
-	SASTSSO         bool
+	CxAPIKeyEnv        string
+	CxBaseURI          string
+	CxBaseAuthURI      string
+	CxTenant           string
+	CxClientID         string
+	CxClientSecretEnv  string
+	CxClientSecretFile string
+	SASTServer         string
+	SASTUserEnv        string
+	SASTPasswordEnv    string
+	SASTTokenEnv       string
+	SASTSSO            bool
 }
 
 // OnMissingPolicy controls behavior when a requested engine's prerequisites are absent.

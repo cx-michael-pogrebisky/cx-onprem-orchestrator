@@ -36,6 +36,24 @@ func Validate(rc *RunConfig) error {
 		errs = append(errs, err.Error())
 	}
 
+	// Cx1 OAuth2 client-credentials auth requires the base/auth URIs + tenant
+	// (the API key would otherwise auto-derive them).
+	if rc.Auth.CxClientID != "" {
+		var miss []string
+		if rc.Auth.CxBaseURI == "" {
+			miss = append(miss, "--cx-base-uri")
+		}
+		if rc.Auth.CxBaseAuthURI == "" {
+			miss = append(miss, "--cx-base-auth-uri")
+		}
+		if rc.Auth.CxTenant == "" {
+			miss = append(miss, "--cx-tenant")
+		}
+		if len(miss) > 0 {
+			errs = append(errs, fmt.Sprintf("--cx-client-id (client-credentials auth) also requires: %s", strings.Join(miss, ", ")))
+		}
+	}
+
 	// Policy enums.
 	switch rc.OnMissing {
 	case OnMissingFail, OnMissingSkipWarn:

@@ -28,7 +28,7 @@ type Config struct {
 	Branch        string
 	OutputDir     string // wrapper-controlled per-engine report directory
 	ReportFormats []string
-	IgnoreOnExit  string // none|results|errors|all (unified)
+	IgnoreOnExit  string   // none|results|errors|all (unified)
 	RawArgs       []string // Tier-B --<engine>-arg passthrough (verbatim, in order)
 	ResolverArgs  []string // SCA only: forwarded into --sca-resolver-params
 	Async         bool
@@ -47,15 +47,20 @@ type Config struct {
 
 	// Auth selectors (env names + non-secret values). Secret VALUES are read from
 	// the named env vars at run time and injected into the child env, never argv.
-	CxAPIKeyEnv     string
-	CxBaseURI       string
-	CxBaseAuthURI   string
-	CxTenant        string
-	SASTServer      string
-	SASTUserEnv     string
-	SASTPasswordEnv string
-	SASTTokenEnv    string
-	SASTSSO         bool
+	// Cx1 supports two mutually-exclusive modes: API key (default), or OAuth2
+	// client-credentials (client-id/secret + base-uri + base-auth-uri + tenant).
+	CxAPIKeyEnv        string
+	CxBaseURI          string
+	CxBaseAuthURI      string
+	CxTenant           string
+	CxClientID         string
+	CxClientSecretEnv  string
+	CxClientSecretFile string
+	SASTServer         string
+	SASTUserEnv        string
+	SASTPasswordEnv    string
+	SASTTokenEnv       string
+	SASTSSO            bool
 
 	// Engine-specific knobs (only the relevant ones are set per engine):
 	Extra map[string]string
@@ -144,4 +149,3 @@ func RunInvocation(ctx context.Context, inv *model.Invocation, opts execpkg.Opti
 		Err:           er.Err,
 	}
 }
-
