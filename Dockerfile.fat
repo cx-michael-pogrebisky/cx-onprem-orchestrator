@@ -12,6 +12,12 @@
 #
 # syntax=docker/dockerfile:1
 
+# Runtime base — must be glibc (the bundled ScaResolver is a glibc-linked .NET
+# binary). Declared globally so it can be used in the runtime FROM below. Default
+# is the current Debian STABLE; override with --build-arg RUNTIME_BASE=... to
+# evaluate alternatives (prefer a released stable suite for production).
+ARG RUNTIME_BASE=debian:13-slim
+
 # Pinned engine images (match manifest.lock).
 FROM checkmarx/kics@sha256:3e5a268eb8adda2e5a483c9359ddfc4cd520ab856a7076dc0b1d8784a37e2602 AS kicsimg
 FROM checkmarx/2ms@sha256:f167f3585a2ff78cc4f2cfe548c75fb1fd220e3c664eb27c01efb878f5d7e4ff AS twomsimg
@@ -43,11 +49,8 @@ RUN $DL "https://download.checkmarx.com/9.5.0/Plugins/CxConsolePlugin-${CXPLUGIN
     && chmod +x /opt/cxconsole/runCxConsole.sh
 
 # --- runtime ----------------------------------------------------------------
-# debian:13-slim (trixie): current stable with freshly-patched packages (fewer
-# CVEs than bookworm). A glibc base is REQUIRED — the bundled ScaResolver is a
-# glibc-linked .NET binary, so musl/alpine and (package-manager-less) distroless
-# are not viable for this runtime.
-FROM debian:13-slim
+# RUNTIME_BASE (declared at top) defaults to debian:13-slim (current stable).
+FROM ${RUNTIME_BASE}
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates git \
       default-jre-headless \
