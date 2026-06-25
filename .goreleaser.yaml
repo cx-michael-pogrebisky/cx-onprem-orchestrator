@@ -1,6 +1,9 @@
 # goreleaser config for cx-onprem-orchestrator.
 # Produces static, zero-dependency binaries for linux/darwin/windows × amd64/arm64,
-# checksums, a cosign signature, an SBOM, and docker images. Run: `goreleaser release --clean`.
+# checksums, a cosign signature (keyless), and an SBOM. The slim + fat docker images
+# are built/pushed from source by a separate release-workflow job (our Dockerfiles
+# build from the repo, not from the goreleaser dist context). A Homebrew tap can be
+# added here once a `homebrew-tap` repo exists. Run: `goreleaser release --clean`.
 version: 2
 
 project_name: cx-onprem-orchestrator
@@ -43,30 +46,6 @@ signs:
 
 sboms:
   - artifacts: archive
-
-dockers:
-  - id: slim
-    dockerfile: Dockerfile
-    image_templates:
-      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:{{ .Version }}"
-      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:latest"
-    build_flag_templates:
-      - "--build-arg=VERSION={{ .Version }}"
-  - id: fat
-    dockerfile: Dockerfile.fat
-    image_templates:
-      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:{{ .Version }}-fat"
-      - "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat"
-    build_flag_templates:
-      - "--build-arg=VERSION={{ .Version }}"
-
-# A Homebrew tap (set cx-michael-pogrebisky/tap repo before release).
-brews:
-  - repository:
-      owner: cx-michael-pogrebisky
-      name: homebrew-tap
-    homepage: "https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator"
-    description: "Unified Checkmarx multi-scanner CLI"
 
 release:
   draft: true

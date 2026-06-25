@@ -1,8 +1,10 @@
 name: release
 
-# Tag-triggered release: goreleaser builds the cross-platform binaries, signs the
-# checksums with cosign (keyless OIDC), generates SBOMs, and publishes the slim +
-# fat docker images to GHCR.
+# Tag-triggered release:
+#  - goreleaser builds the cross-platform binaries, cosign-signs the checksums
+#    (keyless OIDC), generates SBOMs, and creates a draft GitHub release;
+#  - a separate job builds + pushes the slim and fat docker images to GHCR from
+#    our source Dockerfiles (which build from the repo, not the goreleaser dist).
 on:
   push:
     tags: ["v*"]
@@ -13,31 +15,17 @@ permissions:
   id-token: write   # cosign keyless signing via OIDC
 
 jobs:
-  release:
+  binaries:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with: { fetch-depth: 0 }
-
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with: { go-version: "1.26", cache: true }
-
       - name: Install cosign
         uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3
-
       - name: Install syft (SBOM)
         uses: anchore/sbom-action/download-syft@e22c389904149dbc22b58101806040fa8d37a610 # v0
-
-      - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # The fat image fetches engine tools from github.com/checkmarx + S3 + docker.io.
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-
       - name: goreleaser
         uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6
         with:
@@ -45,5 +33,41 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # For the Homebrew tap push, set a PAT with repo scope on the tap:
-          # HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Log in to GHCR
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image refs (GHCR requires lowercase)
+        id: refs
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "ver=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+      - name: Build & push slim image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          build-args: VERSION=${{ steps.refs.outputs.ver }}
+          tags: |
+            ${{ steps.refs.outputs.repo }}:${{ steps.refs.outputs.ver }}
+            ${{ steps.refs.outputs.repo }}:latest
+      - name: Build & push fat image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.fat
+          push: true
+          build-args: VERSION=${{ steps.refs.outputs.ver }}
+          tags: |
+            ${{ steps.refs.outputs.repo }}:${{ steps.refs.outputs.ver }}-fat
+            ${{ steps.refs.outputs.repo }}:fat
