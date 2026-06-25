@@ -16,7 +16,7 @@
 FROM checkmarx/kics@sha256:3e5a268eb8adda2e5a483c9359ddfc4cd520ab856a7076dc0b1d8784a37e2602 AS kicsimg
 FROM checkmarx/2ms@sha256:f167f3585a2ff78cc4f2cfe548c75fb1fd220e3c664eb27c01efb878f5d7e4ff AS twomsimg
 
-FROM golang:1.26 AS build
+FROM golang:1.26.4-alpine3.24 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -27,7 +27,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
       -o /out/cx-onprem-orchestrator ./cmd/cx-onprem-orchestrator
 
 # Fetch the non-image tools at pinned versions.
-FROM debian:12-slim AS tools
+FROM debian:13-slim AS tools
 ARG CX_VERSION=2.3.54
 ARG CXPLUGIN_VERSION=1.1.41
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates unzip tar && rm -rf /var/lib/apt/lists/*
@@ -43,13 +43,17 @@ RUN $DL "https://download.checkmarx.com/9.5.0/Plugins/CxConsolePlugin-${CXPLUGIN
     && chmod +x /opt/cxconsole/runCxConsole.sh
 
 # --- runtime ----------------------------------------------------------------
-FROM debian:12-slim
+# debian:13-slim (trixie): current stable with freshly-patched packages (fewer
+# CVEs than bookworm). A glibc base is REQUIRED — the bundled ScaResolver is a
+# glibc-linked .NET binary, so musl/alpine and (package-manager-less) distroless
+# are not viable for this runtime.
+FROM debian:13-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates git \
       default-jre-headless \
       nodejs npm python3 python3-pip golang-go maven \
     && rm -rf /var/lib/apt/lists/*
-# default-jre on debian 12 is JRE 17 (>= 11, satisfies CxConsolePlugin).
+# default-jre on debian 13 is JRE 21 (>= 11, satisfies CxConsolePlugin).
 
 COPY --from=build  /out/cx-onprem-orchestrator       /usr/local/bin/cx-onprem-orchestrator
 COPY --from=tools  /tools/cx                          /usr/local/bin/cx

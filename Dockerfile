@@ -5,7 +5,10 @@
 #   docker build -t cx-onprem-orchestrator:slim --build-arg VERSION=$(git describe --tags) .
 #
 # syntax=docker/dockerfile:1
-FROM golang:1.26 AS build
+# Alpine build base: our binary is CGO_ENABLED=0, so the static output is identical
+# to a glibc build, but the build stage carries far fewer OS-package CVEs (and is
+# discarded anyway — the runtime is distroless).
+FROM golang:1.26.4-alpine3.24 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
@@ -19,4 +22,7 @@ RUN CGO_ENABLED=0 go build -trimpath \
 # runs as an unprivileged user.
 FROM gcr.io/distroless/static:nonroot
 COPY --from=build /out/cx-onprem-orchestrator /usr/local/bin/cx-onprem-orchestrator
+# Explicit non-root user (distroless:nonroot already defaults to uid 65532; this
+# satisfies the KICS "Missing User Instruction" check and documents intent).
+USER nonroot:nonroot
 ENTRYPOINT ["/usr/local/bin/cx-onprem-orchestrator"]
