@@ -1,14 +1,14 @@
 {
-  "_comment": "Pinned digests/versions for the engine tools cx-onprem-orchestrator drives. Docker images are ALWAYS pulled by sha256 digest, never by mutable tag (mitigation for the 2026-04 checkmarx/kics repo compromise). Bump only via `make verify-pins`, which re-downloads, checksums, and runs golden exit-code tests.",
+  "_comment": "Pinned digests for the engine tools cx-onprem-orchestrator drives. Docker images are ALWAYS pulled by sha256 digest, and the tag is an IMMUTABLE version (never the mutable :latest) — a defence against tag-repush attacks like the 2026-04 checkmarx/kics repo compromise. As of this pin these versions are the newest published images. Bump only via `make verify-pins`, which checks each version tag still resolves to the pinned digest.",
   "images": {
     "kics": {
       "ref": "checkmarx/kics",
-      "tag": "latest",
+      "tag": "v2.1.20",
       "digest": "sha256:3e5a268eb8adda2e5a483c9359ddfc4cd520ab856a7076dc0b1d8784a37e2602"
     },
     "secrets": {
       "ref": "checkmarx/2ms",
-      "tag": "latest",
+      "tag": "4.9.0",
       "digest": "sha256:f167f3585a2ff78cc4f2cfe548c75fb1fd220e3c664eb27c01efb878f5d7e4ff"
     },
     "dast": {

@@ -3,8 +3,9 @@
 A single CLI that orchestrates an arbitrary subset of Checkmarx scanners in one
 invocation, replicates the **`cx` CLI threshold and file-filter syntax verbatim**,
 lets you pass **exact native flags** to each underlying scanner, and reduces all
-results to **one meaningful exit code**. Runs unmodified across Jenkins, TeamCity,
-Bamboo, GitHub Actions, GitLab, Azure DevOps, and Bitbucket.
+results to **one meaningful exit code**. Runs unmodified across **15 CI systems** (GitHub Actions, GitLab, Azure DevOps,
+Jenkins, TeamCity, Bamboo, Bitbucket, Buildkite, CircleCI, AWS CodeBuild, Travis,
+Drone, Semaphore, AppVeyor, Codefresh).
 
 | Engine | `--scanners` token | Driver | Threshold |
 |---|---|---|---|
@@ -39,7 +40,7 @@ You *can* instead grab the static binary or the slim image and install/version-m
 pinning). See [docs/ci.md → Image choice](docs/ci.md#image-choice).
 
 ```bash
-curl -sSfL https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/releases/download/v0.1.0/cx-onprem-orchestrator_linux_amd64.tar.gz | tar xz
+curl -sSfL https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/releases/download/v1.0.0/cx-onprem-orchestrator_linux_amd64.tar.gz | tar xz
 ```
 </details>
 
@@ -106,7 +107,7 @@ Full details and all use cases: **[docs/authentication.md](docs/authentication.m
 - **[docs/authentication.md](docs/authentication.md)** — Cx1 API key & client-credentials, CxSAST auth, all use cases.
 - **[docs/reports.md](docs/reports.md)** — artifacts per scanner, the format-support matrix, and `--report-formats` behavior.
 - **[docs/reference.md](docs/reference.md)** — every command, flag, and environment variable.
-- **[docs/ci.md](docs/ci.md)** — ready-to-paste pipeline snippets for all 7 CI systems.
+- **[docs/ci.md](docs/ci.md)** — ready-to-paste pipeline snippets for all 15 CI systems.
 
 ## Exit codes (stable contract)
 
@@ -123,8 +124,6 @@ A lossless `run-summary.json` is always written to `--output-path`.
   `Configuration.yml`, plus the scanned project's package managers.
 - **KICS / 2ms**: a `kics`/`2ms` binary, or Docker (images pulled by pinned digest).
 - **Containers / SCA**: a Cx1 API key.
-
-See [docs/ci.md](docs/ci.md) for ready-to-paste pipeline snippets for all 7 CI systems.
 
 ## License
 

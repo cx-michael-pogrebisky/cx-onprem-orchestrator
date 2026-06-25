@@ -48,4 +48,5 @@ sboms:
   - artifacts: archive
 
 release:
-  draft: true
+  draft: false       # publish the release directly (1.0.0 GA)
+  mode: replace
