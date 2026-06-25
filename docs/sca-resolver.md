@@ -18,8 +18,18 @@ SCA Resolver mode requires --sca-resolver <path to ScaResolver>
   `CXOO_SCA_RESOLVER=/opt/sca/ScaResolver`, so the flag is optional there);
 - a `Configuration.yml` next to the ScaResolver binary;
 - Cx1 auth (API key or client-credentials — see [authentication.md](authentication.md));
-- the scanned project's **package managers** installed, and a **local folder**
+- the scanned project's **language build tools / package managers** installed
+  (node/npm, python/pip, maven, gradle, nuget, go, …) and a **local folder**
   source (SCA Resolver does not accept a zip or a URL).
+
+> ⚠️ **The fat image does NOT bundle project build toolchains.** SCA Resolver
+> performs *local* dependency resolution, so it needs the scanned project's own
+> package managers present in the **execution environment** — these vary per
+> project and are your responsibility, not the orchestrator's. Provide them in
+> your CI before the scan step (e.g. `actions/setup-node` + `actions/setup-python`,
+> or an `apt-get`/`apk add` step), or build a downstream image `FROM` the fat
+> image with the toolchain added. Only the engine tools and a JRE (the CxSAST
+> runtime) are bundled.
 
 ## Passing arguments — two separate channels
 

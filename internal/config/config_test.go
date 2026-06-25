@@ -72,6 +72,26 @@ func TestResolve_EngineConfigsAndRawArgs(t *testing.T) {
 	}
 }
 
+func TestResolve_PerEngineReportFormatsOverride(t *testing.T) {
+	f := Flags{
+		Scanners:              "sca,kics",
+		ReportFormats:         "json,sarif",
+		ReportFormatsOverride: map[string]string{"sca": "json"},
+	}
+	rc, err := Resolve(f, testEnv(nil), ci.Context{Provider: ci.ProviderLocal})
+	if err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	sca := rc.EngineConfigs[model.EngineSCA]
+	if sca == nil || len(sca.ReportFormats) != 1 || sca.ReportFormats[0] != "json" {
+		t.Errorf("sca should be overridden to [json], got %v", sca.ReportFormats)
+	}
+	kics := rc.EngineConfigs[model.EngineIaC]
+	if kics == nil || len(kics.ReportFormats) != 2 {
+		t.Errorf("kics should keep the global [json,sarif], got %v", kics.ReportFormats)
+	}
+}
+
 func TestValidate_ConflictDetection(t *testing.T) {
 	// Raw -SASTHigh collides with the managed cap derived from --threshold sast-high.
 	f := Flags{

@@ -81,6 +81,10 @@ type Flags struct {
 	Image   map[string]string
 	RawArgs map[string][]string
 
+	// ReportFormatsOverride lets a single engine emit a different format set than
+	// the global --report-formats (keyed by scanner token; CSV value).
+	ReportFormatsOverride map[string]string
+
 	// Engine-specific inputs.
 	ScaResolverPath string
 	ScaResolverArgs []string

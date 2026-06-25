@@ -23,6 +23,11 @@ orchestrator **plus every engine tool** (`cx`, `ScaResolver`, `kics`, `2ms`,
 `CxConsolePlugin`, Java 21) — all **digest-pinned** — so the five engines work with
 **no extra setup**:
 
+> **Note:** SCA dependency resolution additionally needs the *scanned project's*
+> language build tools (node/npm, python/pip, maven, …) present in the execution
+> environment. These are **not** bundled — they vary per project, so provide them
+> in your CI before scanning. See [SCA Resolver](docs/sca-resolver.md).
+
 ```bash
 docker run --rm -v "$PWD":/work -w /work \
   -e CX1_APIKEY -e CXSAST_URL -e CXSAST_USERNAME -e CXSAST_PASSWORD \

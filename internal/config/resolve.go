@@ -179,6 +179,11 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 	out := map[model.Engine]*scanner.Config{}
 	for _, e := range rc.Scanners {
 		tok := CanonicalToken(e)
+		// Per-engine --<engine>-report-formats override, else the global set.
+		formats := rc.Output.Formats
+		if ov := mapGet(f.ReportFormatsOverride, tok); ov != "" {
+			formats = splitCSV(ov)
+		}
 		cfg := &scanner.Config{
 			Engine:        e,
 			Mode:          mapGet(f.Mode, tok),
@@ -188,7 +193,7 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 			ProjectName:   rc.ProjectName,
 			Branch:        rc.Branch,
 			OutputDir:     filepath.Join(rc.Output.Path, string(e)),
-			ReportFormats: rc.Output.Formats,
+			ReportFormats: formats,
 			IgnoreOnExit:  rc.Output.IgnoreOnExit,
 			RawArgs:       mapGetSlice(f.RawArgs, tok),
 			Async:         rc.Async,

@@ -1,14 +1,18 @@
-# Fat image: the batteries-included CI execution path. Bundles the orchestrator
-# plus every v1 engine tool so `cx-onprem-orchestrator run --scanners
-# sast,sca,kics,secrets,containers` works with no extra setup. DAST is NOT bundled
-# (docker-only, post-v1).
+# Fat image: bundles the orchestrator plus every v1 SCANNER tool (cx, ScaResolver,
+# kics + query assets, 2ms, CxConsolePlugin, and a JRE for CxSAST). SAST, KICS,
+# secrets, and the cx-driven SCA/Container scans run with no setup. DAST is NOT
+# bundled (docker-only, post-v1).
 #
 # kics and 2ms (with their query assets) are COPYed from the DIGEST-PINNED official
 # images (same digests as internal/resolve/manifest.lock) — never by mutable tag.
 # cx, ScaResolver, and CxConsolePlugin are fetched at pinned versions.
 #
-# SCA Resolver toolchains: this image bundles a COMMON set (node/npm, python3, Go,
-# Maven, JRE). Exotic stacks should FROM this image and add their toolchain.
+# IMPORTANT — SCA dependency resolution: this image deliberately does NOT bundle
+# project language build tools (node/npm, python/pip, maven, go, ...). SCA Resolver
+# resolves the SCANNED project's dependencies, so it needs that project's build
+# toolchain present in the EXECUTION ENVIRONMENT. Provide it in your CI before
+# scanning (e.g. setup-node / setup-python / an apt step in your workflow), or FROM
+# this image and add the toolchain. Only the JRE is bundled (it is the CxSAST runtime).
 #
 # syntax=docker/dockerfile:1
 
@@ -54,9 +58,11 @@ FROM ${RUNTIME_BASE}
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates git \
       default-jre-headless \
-      nodejs npm python3 python3-pip golang-go maven \
     && rm -rf /var/lib/apt/lists/*
-# default-jre on debian 13 is JRE 21 (>= 11, satisfies CxConsolePlugin).
+# default-jre on debian 13 is JRE 21 (>= 11, the CxSAST CxConsolePlugin runtime).
+# Project language build tools (node/python/maven/go) are intentionally NOT installed
+# — the CI build environment provides them (see header). GitHub Actions injects its
+# own Node for JS actions in container jobs, so checkout/upload still work here.
 
 COPY --from=build  /out/cx-onprem-orchestrator       /usr/local/bin/cx-onprem-orchestrator
 COPY --from=tools  /tools/cx                          /usr/local/bin/cx

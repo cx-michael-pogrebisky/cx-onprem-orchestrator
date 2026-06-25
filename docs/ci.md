@@ -20,6 +20,14 @@ repo / workspace, so you usually only pass `--scanners` and `--threshold`.
 >   (`manifest.lock`); no drift between agents or over time.
 > - **Correct by construction** — the right Java 11+ runtime, the ScaResolver
 >   `Configuration.yml`, and the KICS query assets are already in place.
+>
+> **One thing the image can't bundle: your project's build toolchain.** SCA
+> Resolver resolves dependencies *locally*, so for the `sca` engine the scanned
+> project's package managers (node/npm, python/pip, maven, gradle, nuget, go, …)
+> must be present in the **execution environment**. These vary per project and are
+> intentionally **not** in the image — add them in your CI before the scan step
+> (e.g. `setup-node` + `setup-python`, or an `apt`/`apk` step) or build a
+> downstream image `FROM` the fat image. The other four engines need nothing extra.
 
 > ### ⚠️ Not recommended: thin image / standalone binary + manual tool install
 > `…:latest` (slim) or the release binaries, with you installing `cx`, `ScaResolver`,

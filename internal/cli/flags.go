@@ -10,21 +10,23 @@ var engineTokens = []string{"sast", "sca", "kics", "secrets", "containers"}
 
 // boundFlags holds the cobra-bound flag storage and assembles a config.Flags.
 type boundFlags struct {
-	f       config.Flags
-	rawArgs map[string]*[]string
-	mode    map[string]*string
-	path    map[string]*string
-	image   map[string]*string
+	f             config.Flags
+	rawArgs       map[string]*[]string
+	mode          map[string]*string
+	path          map[string]*string
+	image         map[string]*string
+	reportFormats map[string]*string
 }
 
 // registerRunFlags registers the full run/validate flag surface on cmd and
 // returns the binding used to assemble a config.Flags after parsing.
 func registerRunFlags(cmd *cobra.Command) *boundFlags {
 	b := &boundFlags{
-		rawArgs: map[string]*[]string{},
-		mode:    map[string]*string{},
-		path:    map[string]*string{},
-		image:   map[string]*string{},
+		rawArgs:       map[string]*[]string{},
+		mode:          map[string]*string{},
+		path:          map[string]*string{},
+		image:         map[string]*string{},
+		reportFormats: map[string]*string{},
 	}
 	fs := cmd.Flags()
 
@@ -93,14 +95,17 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 		path := new(string)
 		image := new(string)
 		raw := new([]string)
+		rf := new(string)
 		b.mode[tok] = mode
 		b.path[tok] = path
 		b.image[tok] = image
 		b.rawArgs[tok] = raw
+		b.reportFormats[tok] = rf
 		fs.StringVar(mode, tok+"-mode", "", "Resolution mode for "+tok+": native|docker")
 		fs.StringVar(path, tok+"-path", "", "Binary/JAR/script path for "+tok+" (native)")
 		fs.StringVar(image, tok+"-image", "", "Docker image for "+tok+" (docker)")
 		fs.StringArrayVar(raw, tok+"-arg", nil, "Raw native arg for "+tok+" (repeatable, =-bound; e.g. --"+tok+"-arg=-Foo=bar)")
+		fs.StringVar(rf, tok+"-report-formats", "", "Override --report-formats for "+tok+" only (e.g. --"+tok+"-report-formats=json)")
 	}
 
 	return b
@@ -113,6 +118,7 @@ func (b *boundFlags) toConfigFlags() config.Flags {
 	f.Path = map[string]string{}
 	f.Image = map[string]string{}
 	f.RawArgs = map[string][]string{}
+	f.ReportFormatsOverride = map[string]string{}
 	for _, tok := range engineTokens {
 		if v := *b.mode[tok]; v != "" {
 			f.Mode[tok] = v
@@ -125,6 +131,9 @@ func (b *boundFlags) toConfigFlags() config.Flags {
 		}
 		if v := *b.rawArgs[tok]; len(v) > 0 {
 			f.RawArgs[tok] = v
+		}
+		if v := *b.reportFormats[tok]; v != "" {
+			f.ReportFormatsOverride[tok] = v
 		}
 	}
 	return f
