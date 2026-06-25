@@ -45,7 +45,8 @@ docker-fat:
 # version bump through this so a silent upstream flag/exit-code change is caught.
 verify-pins:
 	@echo "Verifying pinned docker image digests against manifest.lock..."
-	@go run ./hack/verify-pins 2>/dev/null || echo "(hack/verify-pins not present yet — see M5 roadmap)"
+	go run ./hack/verify-pins
+	@echo "Running golden exit-code / threshold / scanner tests..."
 	go test ./internal/exit/... ./internal/threshold/... ./internal/scanner/...
 
 clean:
