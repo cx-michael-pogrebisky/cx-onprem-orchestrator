@@ -59,7 +59,9 @@ You *can* instead grab the static binary or the slim image and install/version-m
 pinning). See [docs/ci.md → Image choice](docs/ci.md#image-choice).
 
 ```bash
-curl -sSfL https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/releases/download/v1.0.0/cx-onprem-orchestrator_linux_amd64.tar.gz | tar xz
+# Always the latest release (stable URL — pick your os/arch):
+#   _linux_amd64.tar.gz · _linux_arm64.tar.gz · _darwin_amd64.tar.gz · _darwin_arm64.tar.gz · _windows_amd64.zip
+curl -sSfL https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/releases/latest/download/cx-onprem-orchestrator_linux_amd64.tar.gz | tar xz
 ```
 </details>
 

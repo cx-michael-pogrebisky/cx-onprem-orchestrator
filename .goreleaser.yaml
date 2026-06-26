@@ -28,6 +28,11 @@ builds:
 
 archives:
   - id: default
+    # Version-LESS archive names so the GitHub "latest release" download URLs are
+    # permanent and never go stale, e.g.
+    #   https://github.com/<owner>/<repo>/releases/latest/download/cx-onprem-orchestrator_linux_amd64.tar.gz
+    # Docs reference those stable URLs (see README), so no doc edit is needed per release.
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     formats: [tar.gz]
     format_overrides:
       - goos: windows

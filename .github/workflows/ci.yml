@@ -28,3 +28,19 @@ jobs:
         with: { go-version: "1.26", cache: true }
       # Fails if a pinned docker image digest in manifest.lock has drifted.
       - run: go run ./hack/verify-pins
+
+  docs-version-links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      # Docs must reference `releases/latest/download/<asset>` (a permanent URL),
+      # never a version-pinned `releases/download/vX.Y.Z/...` URL — those go stale
+      # on every release. This guard fails the build if a pinned one creeps back in.
+      - name: Forbid version-pinned release download URLs in docs
+        run: |
+          if grep -rnE 'releases/download/v?[0-9]+\.[0-9]+' --include='*.md' .; then
+            echo "::error::Version-pinned release download URL found above. Use \
+            'releases/latest/download/<asset>' so docs never go stale."
+            exit 1
+          fi
+          echo "OK — all release download URLs are version-independent (latest)."
