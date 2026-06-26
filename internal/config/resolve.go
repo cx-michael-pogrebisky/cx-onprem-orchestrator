@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/ci"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/model"
@@ -172,32 +171,8 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 		rc.ProjectName = deriveProjectName(ciCtx.Repo, rc.Source)
 	}
 
-	// Validate per-engine timeout durations up front (a bad value is a config error).
-	for tok, v := range f.EngineTimeout {
-		if _, err := parseEngineTimeout(v); err != nil {
-			return nil, fmt.Errorf("invalid --%s-timeout %q: %w", tok, v, err)
-		}
-	}
-
 	rc.EngineConfigs = buildEngineConfigs(rc, f)
 	return rc, nil
-}
-
-// parseEngineTimeout parses a per-engine timeout duration string. Empty or "0"
-// means "no bound" (returns 0). A negative duration is rejected.
-func parseEngineTimeout(s string) (time.Duration, error) {
-	s = strings.TrimSpace(s)
-	if s == "" || s == "0" {
-		return 0, nil
-	}
-	d, err := time.ParseDuration(s)
-	if err != nil {
-		return 0, err
-	}
-	if d < 0 {
-		return 0, fmt.Errorf("must not be negative")
-	}
-	return d, nil
 }
 
 func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config {
@@ -209,7 +184,6 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 		if ov := mapGet(f.ReportFormatsOverride, tok); ov != "" {
 			formats = splitCSV(ov)
 		}
-		engTimeout, _ := parseEngineTimeout(mapGet(f.EngineTimeout, tok)) // validated in Resolve
 		cfg := &scanner.Config{
 			Engine:        e,
 			Mode:          mapGet(f.Mode, tok),
@@ -223,7 +197,6 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 			IgnoreOnExit:  rc.Output.IgnoreOnExit,
 			RawArgs:       mapGetSlice(f.RawArgs, tok),
 			Async:         rc.Async,
-			Timeout:       engTimeout,
 			Extra:         map[string]string{},
 			EnvInject:     map[string]string{},
 

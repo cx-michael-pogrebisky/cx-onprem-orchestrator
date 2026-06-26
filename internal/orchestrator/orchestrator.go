@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/config"
@@ -44,6 +45,70 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	// stageCfg returns the config for an engine if it is in this run, else nil.
+	stageCfg := func(engine model.Engine) *scanner.Config {
+		for _, st := range stages {
+			if st.engine == engine {
+				return st.cfg
+			}
+		}
+		return nil
+	}
+	// orderContainersBeforeSCA moves the SCA stage to immediately follow the
+	// Containers stage (stable for all other engines), so sequential scheduling
+	// runs Containers first; the gate enforces the same order under --parallel.
+	orderContainersBeforeSCA := func(in []*staged) []*staged {
+		var sca *staged
+		withoutSCA := make([]*staged, 0, len(in))
+		for _, st := range in {
+			if st.engine == model.EngineSCA {
+				sca = st
+				continue
+			}
+			withoutSCA = append(withoutSCA, st)
+		}
+		out := make([]*staged, 0, len(in))
+		for _, st := range withoutSCA {
+			out = append(out, st)
+			if st.engine == model.EngineContainers && sca != nil {
+				out = append(out, sca)
+			}
+		}
+		return out
+	}
+
+	// Cx1 backend de-confliction: SCA and Container Security scans that target the
+	// SAME Cx1 project must not be initiated concurrently — the backend
+	// intermittently fails one when both start in close proximity against one
+	// project. When both engines run against the same effective project name
+	// (honoring any per-engine --project-name passthrough override), serialize the
+	// pair: Containers first, then SCA after it. All other engines stay parallel.
+	var scaGate chan struct{} // closed when Containers finishes; nil = no serialization
+	if scaCfg, contCfg := stageCfg(model.EngineSCA), stageCfg(model.EngineContainers); scaCfg != nil && contCfg != nil {
+		if p := effectiveCxProject(scaCfg); p != "" && p == effectiveCxProject(contCfg) {
+			scaGate = make(chan struct{})
+			stages = orderContainersBeforeSCA(stages)
+			if display != nil {
+				fmt.Fprintf(display, "[orchestrator] SCA and Container Security target the same Cx1 project %q — serializing (containers first, then sca)\n", p)
+			}
+		}
+	}
+	// waitForDep blocks the SCA stage until Containers has finished (or the run is
+	// cancelled). signalDone closes the gate once Containers finishes.
+	waitForDep := func(st *staged) {
+		if scaGate != nil && st.engine == model.EngineSCA {
+			select {
+			case <-scaGate:
+			case <-runCtx.Done():
+			}
+		}
+	}
+	signalDone := func(st *staged) {
+		if scaGate != nil && st.engine == model.EngineContainers {
+			close(scaGate)
+		}
+	}
+
 	// runStage performs everything up to and including the child scan for one
 	// engine, mutating ONLY its own *staged — so it is safe to run concurrently.
 	runStage := func(st *staged) {
@@ -68,7 +133,6 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 			st.verdict = &model.Verdict{Engine: e, Category: model.CatConfigError, Message: err.Error()}
 			return
 		}
-		inv.Timeout = st.cfg.Timeout // per-engine --<engine>-timeout (0 = none)
 		if err := os.MkdirAll(inv.OutputDir, 0o755); err != nil {
 			st.verdict = &model.Verdict{Engine: e, Category: model.CatEngineFailure, Message: fmt.Sprintf("cannot create output dir: %v", err)}
 			return
@@ -99,7 +163,9 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 			if rc.FailFast && runCtx.Err() != nil {
 				break
 			}
+			waitForDep(st)
 			runStage(st)
+			signalDone(st)
 		}
 	} else {
 		sem := make(chan struct{}, conc)
@@ -108,9 +174,13 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 			wg.Add(1)
 			go func(st *staged) {
 				defer wg.Done()
+				// Wait for any dependency (SCA→Containers) BEFORE taking a slot,
+				// so a blocked SCA never starves Containers of the semaphore.
+				waitForDep(st)
 				sem <- struct{}{}
 				defer func() { <-sem }()
 				runStage(st)
+				signalDone(st)
 			}(st)
 		}
 		wg.Wait()
@@ -138,6 +208,26 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 	}
 
 	return out
+}
+
+// effectiveCxProject returns the Cx1 project name an engine will actually scan
+// against: cfg.ProjectName, unless a raw --project-name passthrough overrides it.
+// cx uses the LAST --project-name on the argv and raw (Tier-B) args are appended
+// last, so a raw override wins. Both forms are handled: "--project-name=VALUE"
+// (one =-bound token) and "--project-name" "VALUE" (two tokens).
+func effectiveCxProject(cfg *scanner.Config) string {
+	name := cfg.ProjectName
+	for i := 0; i < len(cfg.RawArgs); i++ {
+		a := cfg.RawArgs[i]
+		switch {
+		case strings.HasPrefix(a, "--project-name="):
+			name = strings.TrimPrefix(a, "--project-name=")
+		case a == "--project-name" && i+1 < len(cfg.RawArgs):
+			name = cfg.RawArgs[i+1]
+			i++
+		}
+	}
+	return strings.TrimSpace(name)
 }
 
 // unavailable builds the verdict for a missing/unavailable engine, honoring the

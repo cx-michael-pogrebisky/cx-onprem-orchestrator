@@ -4,10 +4,7 @@
 // every other internal package can depend on it without import cycles.
 package model
 
-import (
-	"strings"
-	"time"
-)
+import "strings"
 
 // Engine identifies one underlying scanner.
 type Engine string
@@ -171,10 +168,6 @@ type Invocation struct {
 	DockerMounts []Mount  `json:"dockerMounts,omitempty"`
 	OutputDir    string   `json:"outputDir"` // wrapper-controlled dir the child writes reports into
 	UsesDocker   bool     `json:"usesDocker"`
-	// Timeout, when > 0, bounds this single engine's execution (independent of the
-	// global --timeout). Used to cap engines that poll a remote service — notably
-	// SCA, whose Cx1 report/results export can stall indefinitely.
-	Timeout time.Duration `json:"timeoutSeconds,omitempty"`
 	// Warnings surfaced during translation (e.g. lossy CxSAST filter conversion).
 	Warnings []string `json:"warnings,omitempty"`
 }

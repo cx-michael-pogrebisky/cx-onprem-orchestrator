@@ -16,7 +16,6 @@ type boundFlags struct {
 	path          map[string]*string
 	image         map[string]*string
 	reportFormats map[string]*string
-	timeout       map[string]*string
 }
 
 // registerRunFlags registers the full run/validate flag surface on cmd and
@@ -28,7 +27,6 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 		path:          map[string]*string{},
 		image:         map[string]*string{},
 		reportFormats: map[string]*string{},
-		timeout:       map[string]*string{},
 	}
 	fs := cmd.Flags()
 
@@ -98,19 +96,16 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 		image := new(string)
 		raw := new([]string)
 		rf := new(string)
-		to := new(string)
 		b.mode[tok] = mode
 		b.path[tok] = path
 		b.image[tok] = image
 		b.rawArgs[tok] = raw
 		b.reportFormats[tok] = rf
-		b.timeout[tok] = to
 		fs.StringVar(mode, tok+"-mode", "", "Resolution mode for "+tok+": native|docker")
 		fs.StringVar(path, tok+"-path", "", "Binary/JAR/script path for "+tok+" (native)")
 		fs.StringVar(image, tok+"-image", "", "Docker image for "+tok+" (docker)")
 		fs.StringArrayVar(raw, tok+"-arg", nil, "Raw native arg for "+tok+" (repeatable, =-bound; e.g. --"+tok+"-arg=-Foo=bar)")
 		fs.StringVar(rf, tok+"-report-formats", "", "Override --report-formats for "+tok+" only (e.g. --"+tok+"-report-formats=json)")
-		fs.StringVar(to, tok+"-timeout", "", "Per-engine time-box for "+tok+", e.g. 8m (0/empty = none; bounds engines that poll a remote service, e.g. SCA export)")
 	}
 
 	return b
@@ -124,7 +119,6 @@ func (b *boundFlags) toConfigFlags() config.Flags {
 	f.Image = map[string]string{}
 	f.RawArgs = map[string][]string{}
 	f.ReportFormatsOverride = map[string]string{}
-	f.EngineTimeout = map[string]string{}
 	for _, tok := range engineTokens {
 		if v := *b.mode[tok]; v != "" {
 			f.Mode[tok] = v
@@ -140,9 +134,6 @@ func (b *boundFlags) toConfigFlags() config.Flags {
 		}
 		if v := *b.reportFormats[tok]; v != "" {
 			f.ReportFormatsOverride[tok] = v
-		}
-		if v := *b.timeout[tok]; v != "" {
-			f.EngineTimeout[tok] = v
 		}
 	}
 	return f

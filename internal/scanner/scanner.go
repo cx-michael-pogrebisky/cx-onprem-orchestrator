@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"time"
 
 	execpkg "github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/exec"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/model"
@@ -33,8 +32,6 @@ type Config struct {
 	RawArgs       []string // Tier-B --<engine>-arg passthrough (verbatim, in order)
 	ResolverArgs  []string // SCA only: forwarded into --sca-resolver-params
 	Async         bool
-	// Timeout, when > 0, bounds this single engine's run (set from --<engine>-timeout).
-	Timeout time.Duration
 
 	// Filters (raw cx-style values; each engine translates to its native flags).
 	FileFilter                 string
@@ -136,14 +133,6 @@ func RegisteredEngines() []model.Engine {
 // treated as an error (a threshold breach is expected). Engine implementations
 // typically call this and then set ReportPaths.
 func RunInvocation(ctx context.Context, inv *model.Invocation, opts execpkg.Options) *model.Result {
-	// Per-engine time-box (independent of the global --timeout). On expiry the
-	// child is killed; execpkg records the cancellation as a non-nil Err, which
-	// the engine's Evaluate then surfaces as an engine failure (never a breach).
-	if inv.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, inv.Timeout)
-		defer cancel()
-	}
 	er := execpkg.Run(ctx, inv, opts)
 	mode := "native"
 	if inv.UsesDocker {

@@ -6,7 +6,6 @@ package sca
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -125,49 +124,8 @@ func (s *Scanner) Run(ctx context.Context, inv *model.Invocation, opts execpkg.O
 	r := scanner.RunInvocation(ctx, inv, opts)
 	r.Route = model.RoutePassthrough
 	r.Warnings = inv.Warnings
-	if scaExportStalled(r) {
-		r.Warnings = append(r.Warnings, exportStallMessage(r))
-	}
 	r.ReportPaths = collectReports(inv.OutputDir)
 	return r
-}
-
-// scaExportStalled reports whether cx failed because the Cx1 SCA results/report
-// export never completed, rather than because of a real threshold breach. cx
-// gates the SCA threshold AND generates the report from the same Cx1 export
-// service; when that service stalls it polls "SCA Export Status: Pending" until a
-// hardcoded timeout and then exits non-zero. A per-engine --sca-timeout firing
-// during that wait surfaces here as a context deadline.
-func scaExportStalled(r *model.Result) bool {
-	if r == nil {
-		return false
-	}
-	if errors.Is(r.Err, context.DeadlineExceeded) {
-		return true
-	}
-	out := string(r.Stdout) + "\n" + string(r.Stderr)
-	for _, sig := range []string{
-		"export generating failed", // cx: "export generating failed - Timed out after 5 minutes"
-		"Failed listing results",
-		"SCA Export Status is: Failed",
-	} {
-		if strings.Contains(out, sig) {
-			return true
-		}
-	}
-	return false
-}
-
-// exportStallMessage explains the stall honestly (this is a Checkmarx backend
-// condition, not a code finding) and points at the mitigation.
-func exportStallMessage(r *model.Result) string {
-	base := "Cx1 SCA export did not complete: the scan ran on Cx1 but its results/report could not be retrieved, " +
-		"so the SCA threshold could not be evaluated and no SCA report was written. This is a Checkmarx export-service " +
-		"condition, not a code finding."
-	if errors.Is(r.Err, context.DeadlineExceeded) {
-		return base + " The per-engine --sca-timeout fired while waiting for the export."
-	}
-	return base + " Bound the wait with --sca-timeout and retry; raise with Checkmarx if it persists."
 }
 
 // ParseResults is best-effort for SCA (gating is native/pass-through). Counts are
@@ -177,14 +135,6 @@ func (s *Scanner) ParseResults(_ context.Context, _ *model.Result) error { retur
 func (s *Scanner) Evaluate(r *model.Result, th threshold.Plan) model.Verdict {
 	v := model.Verdict{Engine: model.EngineSCA}
 	r.NativeGated = th.HasClauses()
-	// A stalled/failed Cx1 export makes cx exit non-zero without ever evaluating
-	// the gate; that is an engine failure, NOT a threshold breach. Check this
-	// BEFORE InterpretCx so cx's overloaded exit 1 is never mislabeled as a breach.
-	if scaExportStalled(r) {
-		v.Category = model.CatEngineFailure
-		v.Message = exportStallMessage(r)
-		return v
-	}
 	if r.Err != nil {
 		v.Category = model.CatEngineFailure
 		v.Message = r.Err.Error()
