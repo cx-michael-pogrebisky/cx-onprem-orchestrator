@@ -29,11 +29,25 @@ orchestrator **plus every engine tool** (`cx`, `ScaResolver`, `kics`, `2ms`,
 > in your CI before scanning. See [SCA Resolver](docs/sca-resolver.md).
 
 ```bash
+# Docker
 docker run --rm -v "$PWD":/work -w /work \
   -e CX1_APIKEY -e CXSAST_URL -e CXSAST_USERNAME -e CXSAST_PASSWORD \
   ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat \
   run --scanners sast,sca,kics,secrets,containers --threshold "sast-critical=1;sca-high=5"
+
+# Podman — drop-in (add :Z to the mount on SELinux hosts: RHEL/Fedora)
+podman run --rm -v "$PWD":/work:Z -w /work \
+  -e CX1_APIKEY -e CXSAST_URL -e CXSAST_USERNAME -e CXSAST_PASSWORD \
+  ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat \
+  run --scanners sast,sca,kics,secrets,containers --threshold "sast-critical=1;sca-high=5"
 ```
+
+> Runs identically under **Docker or Podman**. Many orgs prefer Podman because
+> Docker **Desktop** (the standard Docker path on Windows/macOS) needs a paid
+> subscription at 250+ employees or >$10M revenue, while Podman is Apache-2.0/free —
+> see [Container runtime](docs/ci.md#container-runtime--docker-or-podman). On
+> **Windows**, run the **native binary** (no container needed) — see
+> [Windows agents](docs/ci/windows.md).
 
 <details>
 <summary><b>Advanced (not recommended): slim image / standalone binary</b></summary>

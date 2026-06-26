@@ -4,6 +4,11 @@
 branch/commit/repo from the Git plugin's `GIT_BRANCH`/`GIT_COMMIT`/`GIT_URL` and
 the workspace from `WORKSPACE`. Store `CX1_APIKEY`/`CXSAST_PASSWORD` as credentials.
 
+> **Docker or Podman?** The fat image runs identically under either — see
+> [ci.md → Container runtime](../ci.md#container-runtime--docker-or-podman). You own
+> the Jenkins agents, so install **Podman or Docker** as you prefer; the `docker`
+> agent below drives whichever the agent provides.
+
 ```groovy
 pipeline {
   agent {
@@ -39,7 +44,7 @@ pipeline {
 The `docker` agent above assumes a **Linux** agent (the fat image is a
 `linux/amd64` image). On a **Windows** agent — including **Windows Server 2016**,
 where neither Podman nor Docker can run our Linux image (no WSL2; see
-[windows.md](windows.md)) — use the **native Windows binary** instead of a
+[windows.md](./windows.md)) — use the **native Windows binary** instead of a
 container, and `bat` steps instead of `sh`:
 
 ```groovy
@@ -64,5 +69,5 @@ pipeline {
 }
 ```
 
-See **[windows.md](windows.md)** for the full Windows-agent setup (what to
+See **[windows.md](./windows.md)** for the full Windows-agent setup (what to
 install, why containers don't work on Server 2016, and the gotchas).

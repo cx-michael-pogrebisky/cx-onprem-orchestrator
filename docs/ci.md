@@ -41,6 +41,48 @@ repo / workspace, so you usually only pass `--scanners` and `--threshold`.
 > fat image (e.g. a locked-down base image you must extend) — and even then, prefer
 > `FROM ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat` as your base.
 
+## Container runtime — Docker **or** Podman
+
+The fat image is a standard OCI image, so it runs identically under **Docker** or
+**Podman**. Every `docker …` command in these docs has a `podman …` equivalent —
+just swap the binary:
+
+```bash
+# Docker
+docker run --rm -v "$PWD":/work -w /work \
+  -e CX1_APIKEY -e CXSAST_URL -e CXSAST_USERNAME -e CXSAST_PASSWORD \
+  ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat \
+  run --scanners sast,sca,kics,secrets,containers --threshold "sast-critical=1"
+
+# Podman (drop-in; add :Z to the mount on SELinux hosts — RHEL/Fedora)
+podman run --rm -v "$PWD":/work:Z -w /work \
+  -e CX1_APIKEY -e CXSAST_URL -e CXSAST_USERNAME -e CXSAST_PASSWORD \
+  ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat \
+  run --scanners sast,sca,kics,secrets,containers --threshold "sast-critical=1"
+```
+
+- **Drop-in:** the `-v`/`-w`/`-e`/`--rm` flags and `ghcr.io` pulls are identical;
+  `podman login ghcr.io` / `podman pull` behave like Docker's. On SELinux-enforcing
+  Linux (RHEL/Fedora/CentOS) add **`:Z`** to the workspace mount so the container
+  can read/write it; `:Z` is a harmless no-op on Debian/Ubuntu/macOS/Windows.
+- **Why Podman?** On Windows and macOS the standard Docker path is **Docker
+  Desktop**, which under Docker's Subscription Service Agreement requires a **paid
+  subscription** for organizations with **250+ employees OR more than US$10M annual
+  revenue** (free for personal use, education, open source, and smaller businesses;
+  government entities require a paid subscription regardless of size). **Podman** and
+  **Podman Desktop** are **Apache-2.0 and free at any size**, with no such
+  restriction — so many organizations standardize on Podman. *(This applies to
+  Docker **Desktop**, not Docker itself: Docker Engine and the CLI are free and
+  open-source; on Linux you can run Docker Engine directly with no subscription. The
+  cost attaches on Windows/macOS because there the practical Docker path is Docker
+  Desktop.)*
+- **In hosted CI**, the container runtime backing a platform's `container:` / `image:`
+  directive is **fixed by the platform** (usually Docker/Moby) and can't be swapped to
+  Podman for that job. To use Podman on hosted runners, run `podman run …` inside an
+  ordinary script step instead of the container directive (some hosted images ship
+  Podman; others need it installed — see each system's page), or use a **self-hosted**
+  runner/agent where you control the runtime. The per-system pages note which applies.
+
 ## Auto-detection
 
 Detection precedence (avoids the shared `CI=true` collision):
