@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -43,7 +44,7 @@ func (s *Scanner) Engine() model.Engine { return model.EngineSAST }
 
 func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 	if cfg.Path == "" {
-		return fmt.Errorf("CxSAST requires --sast-path (runCxConsole.sh or the CxConsolePlugin jar/dir)")
+		return fmt.Errorf("CxSAST requires --sast-path (runCxConsole.sh/.cmd, the CxConsolePlugin jar, or the plugin dir)")
 	}
 	if _, err := locateJar(cfg.Path); err != nil {
 		return err
@@ -307,17 +308,29 @@ func locateJar(path string) (string, error) {
 	return matches[0], nil
 }
 
+// javaBinaryName is the java executable's filename for the given GOOS. On Windows
+// it must carry the .exe suffix: an absolute path without it (e.g.
+// JAVA_HOME\bin\java) is not launchable, since Windows only appends extensions
+// from PATHEXT during a PATH search, not for a fully-qualified path.
+func javaBinaryName(goos string) string {
+	if goos == "windows" {
+		return "java.exe"
+	}
+	return "java"
+}
+
 // resolveJava returns the java binary to use: --sast-java (a JDK home or a java
-// path), else $JAVA_HOME/bin/java, else "java" on PATH.
+// path), else $JAVA_HOME/bin/java(.exe), else "java" on PATH.
 func resolveJava(cfg *scanner.Config) string {
+	javaBin := javaBinaryName(runtime.GOOS)
 	if jh := cfg.Extra["sastJava"]; jh != "" {
 		if info, err := os.Stat(jh); err == nil && info.IsDir() {
-			return filepath.Join(jh, "bin", "java")
+			return filepath.Join(jh, "bin", javaBin)
 		}
 		return jh
 	}
 	if jh := os.Getenv("JAVA_HOME"); jh != "" {
-		cand := filepath.Join(jh, "bin", "java")
+		cand := filepath.Join(jh, "bin", javaBin)
 		if _, err := os.Stat(cand); err == nil {
 			return cand
 		}

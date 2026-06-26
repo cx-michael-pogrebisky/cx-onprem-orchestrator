@@ -135,10 +135,10 @@ func TestEvaluate_ExitCodes(t *testing.T) {
 
 func TestTeamProject(t *testing.T) {
 	cases := []struct{ team, project, want string }{
-		{"CxServer/SP", "TnR_Demo", `CxServer\SP\TnR_Demo`},      // forward slashes normalized
-		{`CxServer\SP`, "TnR_Demo", `CxServer\SP\TnR_Demo`},      // already backslash
-		{"/CxServer/SP/", "p", `CxServer\SP\p`},                  // leading/trailing trimmed
-		{"", "p", "p"},                                           // no team -> bare project
+		{"CxServer/SP", "TnR_Demo", `CxServer\SP\TnR_Demo`}, // forward slashes normalized
+		{`CxServer\SP`, "TnR_Demo", `CxServer\SP\TnR_Demo`}, // already backslash
+		{"/CxServer/SP/", "p", `CxServer\SP\p`},             // leading/trailing trimmed
+		{"", "p", "p"},                                      // no team -> bare project
 	}
 	for _, c := range cases {
 		if got := teamProject(c.team, c.project); got != c.want {
@@ -163,6 +163,17 @@ func TestBuildInvocation_TeamPrefix(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(inv.Args, " "), `-ProjectName CxServer\SP\TnR_Demo`) {
 		t.Errorf("expected team-qualified project name, got: %s", strings.Join(inv.Args, " "))
+	}
+}
+
+func TestJavaBinaryName(t *testing.T) {
+	if got := javaBinaryName("windows"); got != "java.exe" {
+		t.Errorf("windows java binary = %q, want java.exe", got)
+	}
+	for _, goos := range []string{"linux", "darwin"} {
+		if got := javaBinaryName(goos); got != "java" {
+			t.Errorf("%s java binary = %q, want java", goos, got)
+		}
 	}
 }
 

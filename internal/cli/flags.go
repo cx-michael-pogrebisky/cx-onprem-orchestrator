@@ -81,7 +81,7 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 	fs.StringVar(&b.f.SASTPasswordEnv, "sast-password-env", "", "Env var holding the CxSAST password (default CXSAST_PASSWORD)")
 	fs.StringVar(&b.f.SASTTokenEnv, "sast-token-env", "", "Env var holding a CxSAST token (preferred over password)")
 	fs.BoolVar(&b.f.SASTSSO, "sast-sso", false, "Use CxSAST Windows SSO (-useSSO)")
-	fs.StringVar(&b.f.SASTJava, "sast-java", "", "JDK home or java path for the CxConsolePlugin (Java 11+ required)")
+	fs.StringVar(&b.f.SASTJava, "sast-java", "", "JDK home or java binary for the CxConsolePlugin (Java 11+; on Windows pass the full path to java.exe)")
 	fs.StringVar(&b.f.SASTTeam, "sast-team", "", "CxSAST team / full-path prefix for the project, e.g. \"CxServer/SP\" -> -ProjectName CxServer\\SP\\<project>")
 
 	// SCA resolver / containers inputs.

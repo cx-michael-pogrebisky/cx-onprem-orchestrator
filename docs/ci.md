@@ -74,6 +74,11 @@ threshold breach (the report-collection barrier), so upload them with an always-
 | AppVeyor | ✅ | [ci/appveyor.md](ci/appveyor.md) |
 | Codefresh | ✅ | [ci/codefresh.md](ci/codefresh.md) |
 
+> **Windows agents:** the snippets above use the `linux/amd64` fat image. On a
+> **Windows** agent — and necessarily on **Windows Server 2016**, where no
+> container runtime can run a Linux image — run the **native Windows binary**
+> instead. See **[ci/windows.md](ci/windows.md)**.
+
 ## Any other CI (e.g. Google Cloud Build, Woodpecker)
 
 If your system isn't auto-detected, run the **fat image** the same way and supply

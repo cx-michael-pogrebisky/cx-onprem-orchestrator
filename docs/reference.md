@@ -91,7 +91,7 @@ See [authentication.md](authentication.md). API key is default; supplying
 | `--sast-password-env <NAME>` | `CXSAST_PASSWORD` | `-CxPassword` |
 | `--sast-token-env <NAME>` | — | `-CxToken` (preferred) |
 | `--sast-sso` | — | `-useSSO` |
-| `--sast-java <path>` | `$JAVA_HOME`/`java` | Java 11+ runtime |
+| `--sast-java <path>` | `$JAVA_HOME`/`java` | Java 11+ runtime (JDK home or a `java` binary). On Windows, pass the full path to `java.exe`, or set `JAVA_HOME` (the `.exe` suffix is added automatically). See [ci/windows.md](ci/windows.md). |
 | `--sast-team <path>` | — | CxSAST team/full-path prefix for the project, e.g. `CxServer/SP` → `-ProjectName CxServer\SP\<project>` (CxSAST rejects a bare project name). Forward slashes are normalized to backslashes. |
 
 ## Tier C — tool resolution (per engine)
