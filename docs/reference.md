@@ -88,10 +88,11 @@ See [authentication.md](authentication.md). API key is default; supplying
 
 | Flag | Env default | Description |
 |---|---|---|
-| `--sast-server <url>` | `CXSAST_URL` | `-CxServer` |
-| `--sast-user-env <NAME>` | `CXSAST_USERNAME` | `-CxUser` |
-| `--sast-password-env <NAME>` | `CXSAST_PASSWORD` | `-CxPassword` |
-| `--sast-token-env <NAME>` | — | `-CxToken` (preferred) |
+| `--sast-server <url>` | `CXSAST_URL` | `-CxServer` (not a secret — value or env) |
+| `--sast-user <name>` | — | `-CxUser` as a **direct value** (username is not a secret) |
+| `--sast-user-env <NAME>` | `CXSAST_USERNAME` | env var holding the user (alternative to `--sast-user`) |
+| `--sast-password-env <NAME>` | `CXSAST_PASSWORD` | **secret** → `-CxPassword` (env name only) |
+| `--sast-token-env <NAME>` | — | **secret** → `-CxToken` (env name only; preferred over password) |
 | `--sast-sso` | — | `-useSSO` |
 | `--sast-java <path>` | `$JAVA_HOME`/`java` | Java 11+ runtime (JDK home or a `java` binary). On Windows, pass the full path to `java.exe`, or set `JAVA_HOME` (the `.exe` suffix is added automatically). See [ci/windows.md](ci/windows.md). |
 | `--sast-team <path>` | — | CxSAST team/full-path prefix for the project, e.g. `CxServer/SP` → `-ProjectName CxServer\SP\<project>` (CxSAST rejects a bare project name). Forward slashes are normalized to backslashes. |

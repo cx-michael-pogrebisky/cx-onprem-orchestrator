@@ -61,7 +61,7 @@ func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 		return fmt.Errorf("CxSAST requires --sast-server (or $CXSAST_URL)")
 	}
 	if !s.hasAuth(cfg) {
-		return fmt.Errorf("CxSAST requires auth: set --sast-token-env, or --sast-user-env + --sast-password-env, or --sast-sso")
+		return fmt.Errorf("CxSAST requires auth: set --sast-token-env, or (--sast-user or --sast-user-env) + --sast-password-env, or --sast-sso")
 	}
 	return nil
 }
@@ -73,11 +73,21 @@ func (s *Scanner) hasAuth(cfg *scanner.Config) bool {
 	if cfg.SASTTokenEnv != "" && os.Getenv(cfg.SASTTokenEnv) != "" {
 		return true
 	}
-	if cfg.SASTUserEnv != "" && os.Getenv(cfg.SASTUserEnv) != "" &&
+	if sastUser(cfg) != "" &&
 		cfg.SASTPasswordEnv != "" && os.Getenv(cfg.SASTPasswordEnv) != "" {
 		return true
 	}
 	return false
+}
+
+// sastUser returns the CxSAST username: the direct --sast-user value if set, else
+// the value of the configured env var. The username is not a secret, so it may be
+// supplied on the command line.
+func sastUser(cfg *scanner.Config) string {
+	if cfg.SASTUser != "" {
+		return cfg.SASTUser
+	}
+	return os.Getenv(cfg.SASTUserEnv)
 }
 
 func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*model.Invocation, error) {
@@ -156,7 +166,7 @@ func (s *Scanner) authArgs(cfg *scanner.Config) []string {
 		}
 	}
 	return []string{
-		"-CxUser", os.Getenv(cfg.SASTUserEnv),
+		"-CxUser", sastUser(cfg),
 		"-CxPassword", os.Getenv(cfg.SASTPasswordEnv),
 	}
 }

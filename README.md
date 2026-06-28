@@ -113,10 +113,13 @@ includes-all-then-filters.
 --sca-resolver-arg=--excludes --sca-resolver-arg='**/generated/**'
 ```
 
-## Authentication (secrets via env, never argv)
+## Authentication (real secrets via env, never argv)
 
-The tool reads the *name* of an env var (or a `0600` file) holding each secret and
-injects it into the child process — secrets never appear in argv, logs, or `--dry-run`.
+Only the **real secrets** — the Cx1 API key, the Cx1 client secret, and the CxSAST
+password/token — are referenced by env-var *name* (or a `0600` file) and never put
+on the command line. Everything else (CxSAST username via `--sast-user`, server,
+Cx1 client ID / URIs / tenant, project names, team) may be passed directly, or via
+env if you prefer.
 
 | Env var (default) | Used by | Mapped to |
 |---|---|---|

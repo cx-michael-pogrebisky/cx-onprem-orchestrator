@@ -79,6 +79,7 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 	fs.StringVar(&b.f.CxBaseAuthURI, "cx-base-auth-uri", "", "Cx1 IAM/auth URI, e.g. https://<region>.iam.checkmarx.net (required for client-credentials)")
 	fs.StringVar(&b.f.CxTenant, "cx-tenant", "", "Cx1 tenant (required for client-credentials)")
 	fs.StringVar(&b.f.SASTServer, "sast-server", "", "CxSAST server URL -> -CxServer (default $CXSAST_URL)")
+	fs.StringVar(&b.f.SASTUser, "sast-user", "", "CxSAST username as a direct value (not a secret; alternative to --sast-user-env)")
 	fs.StringVar(&b.f.SASTUserEnv, "sast-user-env", "", "Env var holding the CxSAST user (default CXSAST_USERNAME)")
 	fs.StringVar(&b.f.SASTPasswordEnv, "sast-password-env", "", "Env var holding the CxSAST password (default CXSAST_PASSWORD)")
 	fs.StringVar(&b.f.SASTTokenEnv, "sast-token-env", "", "Env var holding a CxSAST token (preferred over password)")

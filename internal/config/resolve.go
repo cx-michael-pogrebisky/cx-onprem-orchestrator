@@ -138,6 +138,7 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 			CxClientSecretEnv:  f.CxClientSecretEnv,
 			CxClientSecretFile: f.CxClientSecretFile,
 			SASTServer:         firstNonEmpty(f.SASTServer, env(DefaultSASTServerEnv)),
+			SASTUser:           f.SASTUser,
 			SASTUserEnv:        firstNonEmpty(f.SASTUserEnv, DefaultSASTUserEnv),
 			SASTPasswordEnv:    firstNonEmpty(f.SASTPasswordEnv, DefaultSASTPasswordEnv),
 			SASTTokenEnv:       f.SASTTokenEnv,
@@ -173,6 +174,35 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 
 	rc.EngineConfigs = buildEngineConfigs(rc, f)
 	return rc, nil
+}
+
+// SecretValues returns the distinct, non-trivial secret VALUES referenced by the
+// run — the Cx1 API key, Cx1 client secret, and CxSAST password/token — read from
+// their configured env vars now. Used to redact them from --dry-run/validate output
+// and from streamed child logs (CxSAST passes -CxPassword/-CxToken on the child
+// argv, so the value can otherwise surface). Values shorter than 4 chars are skipped
+// to avoid mangling unrelated output.
+func SecretValues(rc *RunConfig, env EnvFunc) []string {
+	set := map[string]bool{}
+	add := func(name string) {
+		if name == "" {
+			return
+		}
+		if v := env(name); len(v) >= 4 {
+			set[v] = true
+		}
+	}
+	for _, cfg := range rc.EngineConfigs {
+		add(cfg.SASTPasswordEnv)
+		add(cfg.SASTTokenEnv)
+		add(cfg.CxAPIKeyEnv)
+		add(cfg.CxClientSecretEnv)
+	}
+	out := make([]string, 0, len(set))
+	for v := range set {
+		out = append(out, v)
+	}
+	return out
 }
 
 func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config {
@@ -233,6 +263,7 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 			CxClientSecretEnv:  rc.Auth.CxClientSecretEnv,
 			CxClientSecretFile: rc.Auth.CxClientSecretFile,
 			SASTServer:         rc.Auth.SASTServer,
+			SASTUser:           rc.Auth.SASTUser,
 			SASTUserEnv:        rc.Auth.SASTUserEnv,
 			SASTPasswordEnv:    rc.Auth.SASTPasswordEnv,
 			SASTTokenEnv:       rc.Auth.SASTTokenEnv,

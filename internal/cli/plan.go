@@ -70,7 +70,7 @@ func printPlan(w io.Writer, rc *config.RunConfig) {
 			fmt.Fprintf(w, "  invocation: ERROR: %v\n\n", err)
 			continue
 		}
-		fmt.Fprintf(w, "  invocation: %s %s\n", inv.Path, strings.Join(inv.Args, " "))
+		fmt.Fprintf(w, "  invocation: %s %s\n", inv.Path, redactSecrets(strings.Join(inv.Args, " "), rc))
 		if len(inv.EnvKeys) > 0 {
 			fmt.Fprintf(w, "  env: %s (values read at runtime, redacted)\n", strings.Join(inv.EnvKeys, ", "))
 		}
@@ -83,6 +83,15 @@ func printPlan(w io.Writer, rc *config.RunConfig) {
 		}
 		fmt.Fprintln(w)
 	}
+}
+
+// redactSecrets replaces any secret VALUE that would otherwise appear in the
+// printed invocation (notably the CxSAST -CxPassword/-CxToken argv) with "****".
+func redactSecrets(line string, rc *config.RunConfig) string {
+	for _, s := range config.SecretValues(rc, getenv) {
+		line = strings.ReplaceAll(line, s, "****")
+	}
+	return line
 }
 
 func printFilterPlan(w io.Writer, rc *config.RunConfig, e model.Engine) {

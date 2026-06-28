@@ -166,6 +166,37 @@ func TestBuildInvocation_TeamPrefix(t *testing.T) {
 	}
 }
 
+func TestBuildInvocation_DirectUsername(t *testing.T) {
+	// Username is not a secret: --sast-user provides it directly, no env needed.
+	t.Setenv("CXSAST_PASSWORD", "pw")
+	dir := fakePlugin(t)
+	cfg := &scanner.Config{
+		Engine: model.EngineSAST, Path: filepath.Join(dir, "runCxConsole.sh"),
+		Source: ".", ProjectName: "p", OutputDir: filepath.Join(dir, "out"),
+		SASTServer: "http://cx", SASTUser: "admin", SASTPasswordEnv: "CXSAST_PASSWORD",
+		Extra: map[string]string{},
+	}
+	inv, err := (&Scanner{}).BuildInvocation(cfg, threshold.Plan{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := strings.Join(inv.Args, " ")
+	if !strings.Contains(line, "-CxUser admin") {
+		t.Errorf("expected -CxUser admin from --sast-user, got: %s", line)
+	}
+	// hasAuth must accept the direct username + password env (no username env set).
+	if !(&Scanner{}).hasAuth(cfg) {
+		t.Errorf("hasAuth should be true with direct --sast-user + password env")
+	}
+	// Direct value wins over the env var name.
+	t.Setenv("CXSAST_USERNAME", "envuser")
+	cfg.SASTUserEnv = "CXSAST_USERNAME"
+	inv2, _ := (&Scanner{}).BuildInvocation(cfg, threshold.Plan{})
+	if !strings.Contains(strings.Join(inv2.Args, " "), "-CxUser admin") {
+		t.Errorf("--sast-user should win over --sast-user-env")
+	}
+}
+
 func TestJavaBinaryName(t *testing.T) {
 	if got := javaBinaryName("windows"); got != "java.exe" {
 		t.Errorf("windows java binary = %q, want java.exe", got)

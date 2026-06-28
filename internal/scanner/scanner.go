@@ -57,6 +57,7 @@ type Config struct {
 	CxClientSecretEnv  string
 	CxClientSecretFile string
 	SASTServer         string
+	SASTUser           string // CxSAST username as a direct value (not a secret)
 	SASTUserEnv        string
 	SASTPasswordEnv    string
 	SASTTokenEnv       string

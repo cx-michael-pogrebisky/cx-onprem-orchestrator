@@ -28,6 +28,20 @@ type Outcome struct {
 func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 	var out Outcome
 
+	// Redactor scrubs secret VALUES (CxSAST password/token, Cx1 key/secret) from
+	// streamed child output so they never reach the logs.
+	secretVals := config.SecretValues(rc, os.Getenv)
+	var redactor execpkg.Redactor
+	if len(secretVals) > 0 {
+		redactor = func(b []byte) []byte {
+			s := string(b)
+			for _, sec := range secretVals {
+				s = strings.ReplaceAll(s, sec, "****")
+			}
+			return []byte(s)
+		}
+	}
+
 	type staged struct {
 		engine  model.Engine
 		sc      scanner.Scanner
@@ -137,7 +151,7 @@ func Run(ctx context.Context, rc *config.RunConfig, display *os.File) Outcome {
 			st.verdict = &model.Verdict{Engine: e, Category: model.CatEngineFailure, Message: fmt.Sprintf("cannot create output dir: %v", err)}
 			return
 		}
-		opts := execpkg.Options{Display: display, Prefix: fmt.Sprintf("[%s] ", e)}
+		opts := execpkg.Options{Display: display, Prefix: fmt.Sprintf("[%s] ", e), Redactor: redactor}
 		st.result = sc.Run(runCtx, inv, opts)
 		st.result.Engine = e
 		st.result.Ran = true

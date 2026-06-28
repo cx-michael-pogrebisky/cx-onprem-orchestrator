@@ -63,7 +63,7 @@ function fresh() {
     filters:{}, outputPath:"reports", outputName:"",
     parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
     auth:"apikey", authEnv:{apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"",baseAuthUri:"",tenant:""},
-    sast:{server:"",userEnv:"CXSAST_USERNAME",passEnv:"CXSAST_PASSWORD",team:"CxServer",java:""},
+    sast:{server:"",user:"",userEnv:"CXSAST_USERNAME",passEnv:"CXSAST_PASSWORD",team:"CxServer",java:""},
     tools:{scaResolver:"",sastPath:""}, passthrough:[],
   });
   // engineFormats is seeded from the schema by the page itself; don't override it.
@@ -223,6 +223,26 @@ test("secrets-total threshold and =-bound passthrough", () => {
   const o = out(c);
   assert.match(o, /--threshold (")?secrets-total=1(")?/);
   assert.match(o, /--sast-arg=-ReportPDF=report\.pdf/);
+});
+
+test("CxSAST username goes on argv; password stays env-only", () => {
+  const c = fresh(); c.__state.sast.user = "admin";
+  const o = out(c);
+  assert.match(o, /--sast-user admin/);
+  assert.ok(!o.includes("CXSAST_USERNAME"), "username not wired as env when passed directly");
+  assert.match(o, /CXSAST_PASSWORD/, "password still referenced by env name");
+});
+
+test("real secrets are never given as direct VALUE flags (only by env name)", () => {
+  // API key, client secret, CxSAST password must never appear as value-bearing flags.
+  for (const t of ["local","github","gitlab","jenkins","azure"]) {
+    const c = fresh(); c.__state.target = t; c.__state.auth = "client-creds";
+    Object.assign(c.__state.authEnv, { clientId:"id", clientSecretEnv:"CX_CLIENT_SECRET", baseUri:"https://a", baseAuthUri:"https://b", tenant:"t" });
+    const o = out(c);
+    assert.ok(!/--cx-apikey(\s|=)/.test(o), `${t}: no --cx-apikey value flag`);
+    assert.ok(!/--cx-client-secret(\s|=)/.test(o), `${t}: no --cx-client-secret value flag`);
+    assert.ok(!/--sast-password(\s|=)/.test(o), `${t}: no --sast-password value flag`);
+  }
 });
 
 test("no secret VALUES ever appear in output", () => {

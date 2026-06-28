@@ -1,10 +1,22 @@
 # Authentication
 
-`cx-onprem-orchestrator` never accepts secret **values** on the command line — it
-takes the **name of an environment variable** (or a `0600` file) that holds the
-secret, reads it at run time, and injects it into the child process's environment.
-Secrets therefore never appear in argv, the process list, `--dry-run` output, or
-logs (`--dry-run` shows the env-var *names*, redacted).
+`cx-onprem-orchestrator` never accepts **real secret values** on the command line.
+The real secrets are:
+
+- the **Cx1 API key**,
+- the **Cx1 OAuth2 client secret**, and
+- the **CxSAST password** (and token).
+
+For these you supply the **name of an environment variable** (or a `0600` file)
+that holds the secret; the tool reads it at run time and injects it into the child
+process's environment, so the secret never appears in argv, the process list,
+`--dry-run` output, or logs (`--dry-run` shows the env-var *names*, redacted).
+
+**Everything else is not a secret and may be passed directly on the command line** —
+the CxSAST **username**, server URL, the Cx1 client ID / base URI / auth URI /
+tenant, project names, team, branch, etc. (You can still source any of these from
+the environment if you prefer, e.g. shell expansion `--project-name "$PROJ"`, or
+the `--sast-user-env` selector for the username.)
 
 There are two backends with independent auth:
 
@@ -83,26 +95,28 @@ the generated secret into your CI secret store.
 
 ## CxSAST on-prem (SAST)
 
-The CxConsolePlugin authenticates with the CxSAST server. The orchestrator reads
-the server URL and credentials by env-var name (defaults shown). **Prefer a token
-or SSO over a password.** The CxConsolePlugin has no env-based auth of its own, so
-the orchestrator reads the secret from the named env var and passes it on the
-child's argv — visible in that host's process list for the scan duration only.
+The CxConsolePlugin authenticates with the CxSAST server. The **server URL** and
+**username** are not secrets — pass them directly (`--sast-server`, `--sast-user`)
+or by env. Only the **password/token** is a secret (env-name or file). **Prefer a
+token or SSO over a password.** The CxConsolePlugin has no env-based auth of its
+own, so the orchestrator reads the secret from the named env var and passes it on
+the child's argv — visible in that host's process list for the scan duration only.
 
-| Flag | Default | Meaning |
-|---|---|---|
-| `--sast-server <url>` | `$CXSAST_URL` | `-CxServer` |
-| `--sast-user-env <NAME>` | `CXSAST_USERNAME` | `-CxUser` |
-| `--sast-password-env <NAME>` | `CXSAST_PASSWORD` | `-CxPassword` |
-| `--sast-token-env <NAME>` | — | `-CxToken` (preferred over password) |
-| `--sast-sso` | — | `-useSSO` (Windows SSO; preferred where available) |
-| `--sast-java <path>` | `$JAVA_HOME` / `java` | Java **11+** runtime for the plugin |
+| Flag | Default | Secret? | Meaning |
+|---|---|---|---|
+| `--sast-server <url>` | `$CXSAST_URL` | no | `-CxServer` |
+| `--sast-user <name>` | — | no | `-CxUser` (direct value) |
+| `--sast-user-env <NAME>` | `CXSAST_USERNAME` | no | env var holding the user (alternative to `--sast-user`) |
+| `--sast-password-env <NAME>` | `CXSAST_PASSWORD` | **yes** | env var holding the password → `-CxPassword` |
+| `--sast-token-env <NAME>` | — | **yes** | env var holding a token → `-CxToken` (preferred over password) |
+| `--sast-sso` | — | — | `-useSSO` (Windows SSO; preferred where available) |
+| `--sast-java <path>` | `$JAVA_HOME` / `java` | no | Java **11+** runtime for the plugin |
 
 ```bash
-export CXSAST_URL=http://cxsast.internal
-export CXSAST_USERNAME=svc-checkmarx
+# Username + server directly on the command line; only the password via env:
 export CXSAST_PASSWORD=…
 cx-onprem-orchestrator run --scanners sast --threshold "sast-high=10" \
+  --sast-server http://cxsast.internal --sast-user svc-checkmarx \
   --sast-path /opt/cxconsole/runCxConsole.sh
 ```
 
@@ -113,11 +127,18 @@ cx-onprem-orchestrator run --scanners sast --threshold "sast-high=10" \
 
 ## Summary of secret handling
 
-| Secret | Read from | Injected to child as | On argv? |
+Only these three are treated as secrets (env-name / file; never a value on the
+orchestrator's command line):
+
+| Secret | Read from | Injected to child as | On the orchestrator's argv? |
 |---|---|---|---|
 | Cx1 API key | `CX1_APIKEY` / `--cx-apikey-env` | `CX_APIKEY` | never |
 | Cx1 client secret | `CX_CLIENT_SECRET` / `--cx-client-secret-env` / `--cx-client-secret-file` | `CX_CLIENT_SECRET` | never |
-| CxSAST password/token | `CXSAST_PASSWORD` / `CXSAST_USERNAME` / `--sast-token-env` | (CxConsolePlugin argv) | yes — plugin has no env auth |
+| CxSAST password/token | `CXSAST_PASSWORD` / `--sast-token-env` | (CxConsolePlugin argv) | never (read from env) |
+
+Non-secrets — the CxSAST **username** (`--sast-user`), server, Cx1 client ID, base/
+auth URIs, tenant, project names, team, branch — may be passed directly on the
+command line, or sourced from the environment if you prefer.
 
 Run `cx-onprem-orchestrator validate …` (or `run --dry-run`) to see the exact
 resolved invocation per engine with all secret values redacted.

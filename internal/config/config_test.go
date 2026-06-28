@@ -5,10 +5,38 @@ import (
 
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/ci"
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/model"
+	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/scanner"
 )
 
 func testEnv(m map[string]string) EnvFunc {
 	return func(k string) string { return m[k] }
+}
+
+func TestSecretValues(t *testing.T) {
+	rc := &RunConfig{EngineConfigs: map[model.Engine]*scanner.Config{
+		model.EngineSAST: {SASTPasswordEnv: "PW", SASTTokenEnv: "TOK"},
+		model.EngineSCA:  {CxAPIKeyEnv: "KEY", CxClientSecretEnv: "CS"},
+	}}
+	env := func(k string) string {
+		return map[string]string{"PW": "longpassword", "TOK": "abc", "KEY": "keyvalue123", "CS": "clientsecretX"}[k]
+	}
+	got := SecretValues(rc, env)
+	has := func(v string) bool {
+		for _, x := range got {
+			if x == v {
+				return true
+			}
+		}
+		return false
+	}
+	for _, want := range []string{"longpassword", "keyvalue123", "clientsecretX"} {
+		if !has(want) {
+			t.Errorf("SecretValues missing %q: %v", want, got)
+		}
+	}
+	if has("abc") { // len 3 — below the 4-char floor, excluded to avoid mangling output
+		t.Errorf("short value should be excluded: %v", got)
+	}
 }
 
 func TestResolve_Defaults(t *testing.T) {

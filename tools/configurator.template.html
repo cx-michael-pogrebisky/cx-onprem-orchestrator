@@ -163,7 +163,7 @@ const state = {
   parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
   auth:"apikey", // apikey | client-creds | (cxsast is always shown for sast)
   authEnv:{ apikey:"CX1_APIKEY", clientId:"", clientSecretEnv:"CX_CLIENT_SECRET", baseUri:"", baseAuthUri:"", tenant:"" },
-  sast:{ server:"", userEnv:"CXSAST_USERNAME", passEnv:"CXSAST_PASSWORD", team:"CxServer", java:"" },
+  sast:{ server:"", user:"", userEnv:"CXSAST_USERNAME", passEnv:"CXSAST_PASSWORD", team:"CxServer", java:"" },
   tools:{ scaResolver:"", sastPath:"" },
   passthrough:[], // {engine, value}
 };
@@ -248,6 +248,8 @@ function buildArgPairs(){
   // sast auth (only meaningful if sast selected)
   if(state.scanners.sast){
     if(state.sast.server) a.push({flag:"--sast-server", value:state.sast.server});
+    if(state.sast.user) a.push({flag:"--sast-user", value:state.sast.user}); // username is not a secret → direct
+    if(state.sast.passEnv && state.sast.passEnv!=="CXSAST_PASSWORD") a.push({flag:"--sast-password-env", value:state.sast.passEnv});
     if(state.sast.team) a.push({flag:"--sast-team", value:state.sast.team});
     if(state.sast.java) a.push({flag:"--sast-java", value:state.sast.java});
   }
@@ -266,7 +268,9 @@ function envNames(){
   const s=new Set();
   if(state.auth==="apikey") s.add(state.authEnv.apikey||"CX1_APIKEY");
   if(state.auth==="client-creds"){ if(state.authEnv.clientSecretEnv) s.add(state.authEnv.clientSecretEnv); }
-  if(state.scanners.sast){ s.add(state.sast.userEnv||"CXSAST_USERNAME"); s.add(state.sast.passEnv||"CXSAST_PASSWORD");
+  if(state.scanners.sast){
+    if(!state.sast.user) s.add(state.sast.userEnv||"CXSAST_USERNAME"); // username only via env when not passed directly
+    s.add(state.sast.passEnv||"CXSAST_PASSWORD"); // password is a secret → always env
     if(state.sast.server==="") s.add("CXSAST_URL"); }
   return [...s].filter(Boolean);
 }
@@ -832,7 +836,8 @@ function buildForm(){
   f.append(fsOrc);
 
   // Auth
-  const fsAuth=el("fieldset",{}, el("legend",{},"Authentication (names only — never secrets)"));
+  const fsAuth=el("fieldset",{}, el("legend",{},"Authentication"));
+  fsAuth.append(el("div",{class:"hint",html:"Only <b>real secrets</b> — the <b>Cx1 API key</b>, <b>Cx1 client secret</b>, and <b>CxSAST password</b> (and token) — are referenced by <b>env-var name</b> and never put on the command line. Everything else (server, username, tenant, IDs) is a direct value."}));
   fsAuth.append(el("label",{},"Cx1 auth (SCA / Containers)"));
   fsAuth.append(seg([{id:"apikey",label:"API key"},{id:"client-creds",label:"OAuth2 client-credentials"}], state.auth, id=>{ state.auth=id; buildForm(); render(); }));
   if(state.auth==="apikey"){ fsAuth.append(field("API-key env var (--cx-apikey-env)","authEnv.apikey","CX1_APIKEY")); }
@@ -844,6 +849,8 @@ function buildForm(){
   if(state.scanners.sast){
     fsAuth.append(el("div",{class:"hint",html:"<b>CxSAST</b> (native on-prem) — team is set in <i>Project &amp; team</i> above:"}));
     fsAuth.append(field("CxSAST server (--sast-server)","sast.server","default $CXSAST_URL"));
+    fsAuth.append(field("CxSAST username (--sast-user)","sast.user","direct value; blank = read from the env var below"));
+    fsAuth.append(field("CxSAST password env-var name (--sast-password-env)","sast.passEnv","secret — referenced by name, never a value"));
     if(state.runtime==="native") fsAuth.append(field("Java (--sast-java)","sast.java","path to java(.exe) or JAVA_HOME"));
   }
   f.append(fsAuth);
@@ -959,6 +966,7 @@ function runSelfTest(){
   scn("separate project names", ()=>{state.projectName="base";state.sastProjectName="sastproj";state.cxProjectName="cxproj";}, [{d:"--sast-project-name",c:has("--sast-project-name sastproj")},{d:"--cx-project-name",c:has("--cx-project-name cxproj")}]);
   scn("per-scanner formats: SCA json-only", ()=>{state.engineFormats.sca={json:true};}, [{d:"--sca-report-formats json",c:has("--sca-report-formats json")},{d:"no global --report-formats",c:(o)=>!o.includes("--report-formats ")}]);
   scn("per-scanner formats: SAST adds pdf", ()=>{state.engineFormats.sast={xml:true,pdf:true};}, [{d:"--sast-report-formats",c:(o)=>/--sast-report-formats (xml,pdf|pdf,xml)/.test(o)}]);
+  scn("username on argv, password by env", ()=>{state.sast.user="admin";}, [{d:"--sast-user admin",c:has("--sast-user admin")},{d:"no CXSAST_USERNAME env",c:(o)=>!o.includes("CXSAST_USERNAME")},{d:"password still env",c:has("CXSAST_PASSWORD")}]);
   scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);
   reset(); render();
 

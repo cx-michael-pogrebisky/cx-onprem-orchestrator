@@ -97,10 +97,12 @@ BITBUCKET_BUILD_NUMBER → JENKINS_URL → BUILDKITE → CIRCLECI → CODEBUILD_
 TRAVIS → DRONE → SEMAPHORE → APPVEYOR → CF_BUILD_ID → else local`. Run
 `cx-onprem-orchestrator detect` to see what it resolved.
 
-Provide secrets as environment variables (never on the command line): `CX1_APIKEY`
-(SCA/containers), `CXSAST_URL` / `CXSAST_USERNAME` / `CXSAST_PASSWORD` (CxSAST) — or
-client-credentials, see [authentication.md](authentication.md). Reports survive a
-threshold breach (the report-collection barrier), so upload them with an always-run step.
+Provide the **real secrets** as environment variables (never on the command line):
+`CX1_APIKEY` (SCA/containers), `CXSAST_PASSWORD` (CxSAST) — or client-credentials
+(`CX_CLIENT_SECRET`), see [authentication.md](authentication.md). Everything else,
+including `CXSAST_URL` and the CxSAST **username** (`--sast-user`), is not a secret
+and may be passed directly (or via env if you prefer). Reports survive a threshold
+breach (the report-collection barrier), so upload them with an always-run step.
 
 ## Per-system snippets (all fat-image-first)
 
