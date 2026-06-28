@@ -30,7 +30,12 @@ type Flags struct {
 	Source   string
 
 	ProjectName string
-	Branch      string
+	// Per-family project-name overrides (fall back to ProjectName when empty).
+	// CxSAST and Cx1 can use different project names; SASTProjectName overrides the
+	// CxSAST project, CxProjectName overrides the Cx1 (SCA + Container Security) project.
+	SASTProjectName string
+	CxProjectName   string
+	Branch          string
 
 	Threshold string
 

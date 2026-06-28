@@ -4,7 +4,45 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/model"
 )
+
+// EngineFormats declares one engine's report-format support: the unified tokens it
+// can emit (sorted, including Mandatory) and the mandatory format the wrapper always
+// requests for parsing / the run summary. This is the single source of truth used by
+// both the engines (via SelectEngineFormats) and the `schema` command / config
+// builder, so the page's per-scanner format options can never drift.
+type EngineFormats struct {
+	Mandatory string   `json:"mandatory"`
+	Supported []string `json:"supported"`
+}
+
+var engineReportFormats = map[model.Engine]EngineFormats{
+	model.EngineSAST:       {Mandatory: "xml", Supported: []string{"csv", "pdf", "rtf", "xml"}},
+	model.EngineSCA:        {Mandatory: "json", Supported: UnifiedReportFormats()}, // cx (ast-cli)
+	model.EngineIaC:        {Mandatory: "json", Supported: []string{"asff", "codeclimate", "csv", "cyclonedx", "glsast", "html", "json", "junit", "pdf", "sarif", "sonarqube"}},
+	model.EngineSecrets:    {Mandatory: "json", Supported: []string{"json", "sarif", "yaml"}},
+	model.EngineContainers: {Mandatory: "json", Supported: UnifiedReportFormats()}, // cx (ast-cli)
+}
+
+// EngineReportFormats returns a copy of the engine's report-format support.
+func EngineReportFormats(e model.Engine) EngineFormats {
+	ef := engineReportFormats[e]
+	return EngineFormats{Mandatory: ef.Mandatory, Supported: append([]string(nil), ef.Supported...)}
+}
+
+// SelectEngineFormats restricts a unified --report-formats request to what the given
+// engine supports (always including its mandatory format). Engines call this instead
+// of declaring their own format sets, keeping one source of truth.
+func SelectEngineFormats(e model.Engine, requested []string) (selected, warnings []string) {
+	ef := engineReportFormats[e]
+	sup := make(map[string]bool, len(ef.Supported))
+	for _, f := range ef.Supported {
+		sup[f] = true
+	}
+	return SelectFormats(requested, sup, ef.Mandatory)
+}
 
 // SelectFormats restricts the unified --report-formats request to the formats an
 // engine actually supports, always including `mandatory` (the machine-readable

@@ -72,7 +72,7 @@ func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 
 func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model.Invocation, error) {
 	// KICS emits any subset of its native formats; json is mandatory (wrapper parsing).
-	formats, fmtWarn := scanner.SelectFormats(cfg.ReportFormats, kicsFormats, "json")
+	formats, fmtWarn := scanner.SelectEngineFormats(model.EngineIaC, cfg.ReportFormats)
 	tr := filter.ToKICSExcludePaths(filter.ParseGlob(cfg.FileFilter), filter.ParseGlob(cfg.IaCFilter))
 	warnings := append(append([]string{}, tr.Warnings...), fmtWarn...)
 
@@ -207,12 +207,6 @@ func (s *Scanner) Evaluate(r *model.Result, th threshold.Plan) model.Verdict {
 }
 
 // kicsFormats are the report formats KICS can emit (native token == unified token).
-var kicsFormats = map[string]bool{
-	"json": true, "sarif": true, "html": true, "pdf": true, "csv": true,
-	"junit": true, "sonarqube": true, "cyclonedx": true, "asff": true,
-	"codeclimate": true, "glsast": true,
-}
-
 // collectReports globs every artifact KICS wrote for our report base name.
 func collectReports(dir string) []string {
 	matches, _ := filepath.Glob(filepath.Join(dir, reportName+".*"))

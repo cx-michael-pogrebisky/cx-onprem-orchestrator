@@ -21,7 +21,9 @@ with `cx-onprem-orchestrator run --help`.
 |---|---|---|
 | `--scanners <list>` | **required** | The analog of `cx --scan-types`. Engines to run: `sast,sca,kics,secrets,containers` (or the explicit `all`). **Only the listed engines run.** Unlike `cx`, there is **no default** — omitting `--scanners` is a config error (exit 30); the tool never implicitly runs "all". Aliases: `iac`/`iac-security`→kics, `2ms`/`twoms`→secrets, `container`/`container-security`→containers. |
 | `-s, --source <dir>` | CI workspace, else `.` | Path to the code under test. |
-| `--project-name <name>` | derived from repo/source | Project name reported to the backends. |
+| `--project-name <name>` | derived from repo/source | Project name reported to the backends (default for every engine). |
+| `--sast-project-name <name>` | `--project-name` | Override the project name for **CxSAST** only (the CxSAST project becomes `<team>\<name>`). |
+| `--cx-project-name <name>` | `--project-name` | Override the project name for the **Cx1** engines (SCA + Container Security) only. |
 | `--branch <name>` | CI-detected | Branch name. |
 
 ## Tier A — threshold

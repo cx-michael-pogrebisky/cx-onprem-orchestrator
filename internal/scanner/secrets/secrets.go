@@ -28,9 +28,6 @@ const DefaultImage = "checkmarx/2ms:latest"
 
 const reportName = "2ms"
 
-// twomsFormats are the report formats 2ms can emit (inferred from file extension).
-var twomsFormats = map[string]bool{"json": true, "yaml": true, "sarif": true}
-
 func init() {
 	scanner.Register(model.EngineSecrets, func() scanner.Scanner { return &Scanner{} })
 }
@@ -75,7 +72,7 @@ func (s *Scanner) Available(_ context.Context, cfg *scanner.Config) error {
 func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model.Invocation, error) {
 	tr := filter.ToSecretsIgnorePatterns(filter.ParseGlob(cfg.FileFilter), filter.ParseGlob(cfg.SecretsFilter))
 	// 2ms infers report format from the file extension; json is mandatory (parsing).
-	formats, fmtWarn := scanner.SelectFormats(cfg.ReportFormats, twomsFormats, "json")
+	formats, fmtWarn := scanner.SelectEngineFormats(model.EngineSecrets, cfg.ReportFormats)
 
 	inv := &model.Invocation{
 		Engine:    model.EngineSecrets,

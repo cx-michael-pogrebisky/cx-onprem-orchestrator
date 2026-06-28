@@ -33,6 +33,9 @@
           border-radius:999px; padding:5px 10px; cursor:pointer; user-select:none; font-size:12.5px; }
   .chip input { accent-color:var(--accent); }
   .chip.on { border-color:var(--accent); color:#cfe0ff; }
+  .chip input:disabled + span, .chip input:disabled { opacity:.7; }
+  .fmt-group { margin:8px 0 10px; }
+  .fmt-eng { font-size:12px; color:var(--fg); margin-bottom:4px; font-weight:600; }
   .seg { display:flex; flex-wrap:wrap; gap:6px; }
   .seg button { background:var(--code); border:1px solid var(--line); color:var(--fg); border-radius:6px;
                 padding:6px 10px; cursor:pointer; font-size:12.5px; }
@@ -150,18 +153,22 @@ const TARGETS = {
 const state = {
   target:"local", os:"linux", runtime:"docker",
   scanners:{ sast:true, sca:true, kics:true, secrets:true, containers:true },
-  source:"", projectName:"", branch:"",
+  source:"", projectName:"", sastProjectName:"", cxProjectName:"", branch:"",
   thresholds:[ {engine:"sast", sev:"critical", limit:"1"} ],
   filters:{}, // flagName -> value
-  reportFormats:{ json:true, sarif:true },
+  // engineFormats: per-engine selected report formats (engine token -> {fmt:bool}),
+  // seeded from each engine's effective default. Populated below once SCHEMA is read.
+  engineFormats:{},
   outputPath:"reports", outputName:"",
   parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
   auth:"apikey", // apikey | client-creds | (cxsast is always shown for sast)
   authEnv:{ apikey:"CX1_APIKEY", clientId:"", clientSecretEnv:"CX_CLIENT_SECRET", baseUri:"", baseAuthUri:"", tenant:"" },
-  sast:{ server:"", userEnv:"CXSAST_USERNAME", passEnv:"CXSAST_PASSWORD", team:"CxServer/SP", java:"" },
+  sast:{ server:"", userEnv:"CXSAST_USERNAME", passEnv:"CXSAST_PASSWORD", team:"CxServer", java:"" },
   tools:{ scaResolver:"", sastPath:"" },
   passthrough:[], // {engine, value}
 };
+// Seed per-engine report-format selections from each engine's effective default.
+SCHEMA.engines.forEach(e => { state.engineFormats[e] = effectiveDefaultFormats(e); });
 
 /* ---------- helpers ---------- */
 const ENGINE_LABELS = { sast:"SAST (CxSAST)", sca:"SCA", kics:"KICS (IaC)", secrets:"Secrets (2ms)", containers:"Container Security" };
@@ -170,6 +177,18 @@ const flagUsage = (name) => { const f = SCHEMA.flags.find(x=>x.name===name); ret
 function el(tag, attrs={}, ...kids){ const e=document.createElement(tag);
   for(const k in attrs){ if(k==="class")e.className=attrs[k]; else if(k==="html")e.innerHTML=attrs[k]; else e.setAttribute(k,attrs[k]); }
   for(const c of kids){ if(c==null)continue; e.append(c.nodeType?c:document.createTextNode(c)); } return e; }
+
+// Per-engine report-format support from the schema (source of truth).
+function engineFmtInfo(tok){ return (SCHEMA.engineReportFormats && SCHEMA.engineReportFormats[tok]) || {mandatory:"json", supported:["json"]}; }
+// Effective default formats for an engine = its mandatory + (json,sarif ∩ supported),
+// mirroring the CLI's default --report-formats json,sarif piped through SelectFormats.
+function effectiveDefaultFormats(tok){
+  const info=engineFmtInfo(tok); const sel={};
+  if(info.mandatory) sel[info.mandatory]=true;
+  for(const f of ["json","sarif"]) if(info.supported.includes(f)) sel[f]=true;
+  return sel;
+}
+function sameSet(a,b){ if(a.length!==b.length) return false; const s=new Set(a); return b.every(x=>s.has(x)); }
 
 const needsQuote = (v) => v==="" || /[^A-Za-z0-9_,.:@/=+-]/.test(v);
 function qBash(v){ if(!needsQuote(v))return v; return '"'+v.replace(/(["\\$`])/g,"\\$1")+'"'; }
@@ -182,7 +201,6 @@ function thresholdString(){
   return state.thresholds.filter(t=>t.engine&&t.sev!==undefined&&t.limit!=="")
     .map(t=> t.engine==="secrets-total" ? "secrets-total="+t.limit : t.engine+"-"+t.sev+"="+t.limit ).join(";");
 }
-function reportFormatList(){ return SCHEMA.reportFormats.filter(f=>state.reportFormats[f]); }
 
 /* Returns ordered array of {flag, value|null}. value null => valueless (bool/flag-only). */
 function buildArgPairs(){
@@ -191,12 +209,23 @@ function buildArgPairs(){
   const thr=thresholdString(); if(thr) a.push({flag:"--threshold", value:thr});
   if(state.source) a.push({flag:"--source", value:state.source});
   if(state.projectName) a.push({flag:"--project-name", value:state.projectName});
+  if(state.scanners.sast && state.sastProjectName) a.push({flag:"--sast-project-name", value:state.sastProjectName});
+  if((state.scanners.sca||state.scanners.containers) && state.cxProjectName) a.push({flag:"--cx-project-name", value:state.cxProjectName});
   if(state.branch) a.push({flag:"--branch", value:state.branch});
   // filters
   for(const name in state.filters){ const v=state.filters[name]; if(!v) continue;
     if(name==="use-gitignore"){ if(v) a.push({flag:"--use-gitignore", value:null}); } else a.push({flag:"--"+name, value:v}); }
-  // output
-  const rf=reportFormatList(); if(rf.length) a.push({flag:"--report-formats", value:rf.join(",")});
+  // output — per-scanner report formats. Emit --<engine>-report-formats only when a
+  // scanner's selection differs from its effective default (json,sarif ∩ supported);
+  // the implicit global default covers the rest, keeping the command clean.
+  for(const e of selectedEngines()){
+    const info=engineFmtInfo(e);
+    const map=state.engineFormats[e]||effectiveDefaultFormats(e);
+    let sel=Object.keys(map).filter(f=>map[f]);
+    if(info.mandatory && !sel.includes(info.mandatory)) sel=[info.mandatory, ...sel]; // mandatory always emitted
+    const def=Object.keys(effectiveDefaultFormats(e));
+    if(!sameSet(sel, def)) a.push({flag:"--"+e+"-report-formats", value:sel.join(",")});
+  }
   if(state.outputPath) a.push({flag:"--output-path", value:state.outputPath});
   if(state.outputName) a.push({flag:"--output-name", value:state.outputName});
   if(state.ignoreOnExit) a.push({flag:"--ignore-on-exit", value:state.ignoreOnExit});
@@ -703,10 +732,12 @@ function buildForm(){
 
   // Project & team — most-used fields, kept at the top.
   const fsProj=el("fieldset",{}, el("legend",{},"Project & team — most used"));
-  fsProj.append(field("Project name — Cx1 & CxSAST (--project-name)","projectName","derived from repo if blank"));
-  fsProj.append(field("CxSAST team (--sast-team)","sast.team","e.g. CxServer/SP"));
+  fsProj.append(field("Project name — default for all engines (--project-name)","projectName","derived from repo if blank"));
+  fsProj.append(field("CxSAST project name (--sast-project-name)","sastProjectName","overrides project name for CxSAST"));
+  fsProj.append(field("CxSAST team (--sast-team)","sast.team","default CxServer"));
+  fsProj.append(field("Cx1 project name — SCA & Container Security (--cx-project-name)","cxProjectName","overrides project name for Cx1"));
   fsProj.append(field("Branch (--branch)","branch","CI-detected if blank"));
-  fsProj.append(el("div",{class:"hint",html:"One <code>--project-name</code> is used for the Cx1 (SCA / Container Security) project <i>and</i> the CxSAST project; CxSAST prefixes it with the team, e.g. <code>CxServer\\SP\\&lt;name&gt;</code>."}));
+  fsProj.append(el("div",{class:"hint",html:"CxSAST and Cx1 can use <b>separate</b> project names — fill the overrides, or leave them blank to use one name everywhere. CxSAST's project is <code>&lt;team&gt;\\&lt;name&gt;</code>, e.g. <code>CxServer\\&lt;name&gt;</code>."}));
   f.append(fsProj);
 
   // Engines
@@ -760,13 +791,28 @@ function buildForm(){
 
   // Output
   const fsOut=el("fieldset",{}, el("legend",{},"Output"));
-  fsOut.append(el("label",{},"Report formats (--report-formats)"));
-  const rfc=el("div",{class:"chips"});
-  for(const fmt of SCHEMA.reportFormats){ const lab=el("label",{class:"chip"+(state.reportFormats[fmt]?" on":"")});
-    const cb=el("input",{type:"checkbox"}); cb.checked=!!state.reportFormats[fmt];
-    cb.onchange=()=>{ state.reportFormats[fmt]=cb.checked; lab.classList.toggle("on",cb.checked); render(); };
-    lab.append(cb,fmt); rfc.append(lab); }
-  fsOut.append(rfc);
+  fsOut.append(el("label",{},"Report formats — per scanner"));
+  const rfWrap=el("div",{});
+  const selForFmt = SCHEMA.engines.filter(e=>state.scanners[e]);
+  if(selForFmt.length===0) rfWrap.append(el("div",{class:"hint",html:"Select an engine above to choose its report formats."}));
+  for(const e of selForFmt){
+    const info=engineFmtInfo(e);
+    state.engineFormats[e]=state.engineFormats[e]||effectiveDefaultFormats(e);
+    const grp=el("div",{class:"fmt-group"});
+    grp.append(el("div",{class:"fmt-eng"}, ENGINE_LABELS[e]||e));
+    const chips=el("div",{class:"chips"});
+    for(const fmt of info.supported){
+      const isMand=(fmt===info.mandatory);
+      const on=!!state.engineFormats[e][fmt]||isMand;
+      const lab=el("label",{class:"chip"+(on?" on":"")});
+      const cb=el("input",{type:"checkbox"}); cb.checked=on; cb.disabled=isMand;
+      cb.onchange=()=>{ state.engineFormats[e][fmt]=cb.checked; lab.classList.toggle("on",cb.checked); render(); };
+      lab.append(cb, fmt+(isMand?" *":"")); chips.append(lab);
+    }
+    grp.append(chips); rfWrap.append(grp);
+  }
+  fsOut.append(rfWrap);
+  fsOut.append(el("div",{class:"hint",html:"<code>*</code> = mandatory (always emitted). Each scanner shows only the formats it supports; defaults are <code>json,sarif</code> where available (CxSAST: <code>xml</code>)."}));
   fsOut.append(field("Output path","outputPath","default ./cxoo-reports"));
   fsOut.append(field("Output name","outputName","default cxoo"));
   fsOut.append(el("label",{},"ignore-on-exit"));
@@ -909,6 +955,10 @@ function runSelfTest(){
   scn("jenkins groovy", ()=>{state.target="jenkins";}, [{d:"pipeline{",c:has("pipeline {")},{d:"credentials",c:has("credentials(")}]);
   scn("codebuild·win native", ()=>{state.target="codebuild";state.os="windows";}, [{d:".exe",c:has("cx-onprem-orchestrator.exe")},{d:"win-container note",c:(o,n)=>n.toLowerCase().includes("windows container")}]);
   scn("project+team flags", ()=>{state.projectName="myapp";state.sast.team="CxServer/SP";}, [{d:"--project-name",c:has("--project-name myapp")},{d:"--sast-team",c:has("--sast-team CxServer/SP")}]);
+  scn("default team is CxServer", ()=>{}, [{d:"--sast-team CxServer",c:has("--sast-team CxServer")}]);
+  scn("separate project names", ()=>{state.projectName="base";state.sastProjectName="sastproj";state.cxProjectName="cxproj";}, [{d:"--sast-project-name",c:has("--sast-project-name sastproj")},{d:"--cx-project-name",c:has("--cx-project-name cxproj")}]);
+  scn("per-scanner formats: SCA json-only", ()=>{state.engineFormats.sca={json:true};}, [{d:"--sca-report-formats json",c:has("--sca-report-formats json")},{d:"no global --report-formats",c:(o)=>!o.includes("--report-formats ")}]);
+  scn("per-scanner formats: SAST adds pdf", ()=>{state.engineFormats.sast={xml:true,pdf:true};}, [{d:"--sast-report-formats",c:(o)=>/--sast-report-formats (xml,pdf|pdf,xml)/.test(o)}]);
   scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);
   reset(); render();
 

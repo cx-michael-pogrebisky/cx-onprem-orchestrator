@@ -184,13 +184,27 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 		if ov := mapGet(f.ReportFormatsOverride, tok); ov != "" {
 			formats = splitCSV(ov)
 		}
+		// Per-family project-name override: CxSAST and the Cx1 engines (SCA,
+		// Container Security) may use different project names; everything else
+		// falls back to the shared rc.ProjectName.
+		projectName := rc.ProjectName
+		switch e {
+		case model.EngineSAST:
+			if f.SASTProjectName != "" {
+				projectName = f.SASTProjectName
+			}
+		case model.EngineSCA, model.EngineContainers:
+			if f.CxProjectName != "" {
+				projectName = f.CxProjectName
+			}
+		}
 		cfg := &scanner.Config{
 			Engine:        e,
 			Mode:          mapGet(f.Mode, tok),
 			Path:          mapGet(f.Path, tok),
 			Image:         mapGet(f.Image, tok),
 			Source:        rc.Source,
-			ProjectName:   rc.ProjectName,
+			ProjectName:   projectName,
 			Branch:        rc.Branch,
 			OutputDir:     filepath.Join(rc.Output.Path, string(e)),
 			ReportFormats: formats,

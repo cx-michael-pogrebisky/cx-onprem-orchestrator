@@ -33,7 +33,9 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 	// Tier C — selection / context.
 	fs.StringVar(&b.f.Scanners, "scanners", "", "Comma-separated engines to run: sast,sca,kics,secrets,containers (or 'all'). Required.")
 	fs.StringVarP(&b.f.Source, "source", "s", "", "Path to the code under test (default: CI-detected workspace or '.')")
-	fs.StringVar(&b.f.ProjectName, "project-name", "", "Project name (default: derived from repo/source)")
+	fs.StringVar(&b.f.ProjectName, "project-name", "", "Project name for all engines (default: derived from repo/source)")
+	fs.StringVar(&b.f.SASTProjectName, "sast-project-name", "", "CxSAST project name override (default: --project-name)")
+	fs.StringVar(&b.f.CxProjectName, "cx-project-name", "", "Cx1 (SCA + Container Security) project name override (default: --project-name)")
 	fs.StringVar(&b.f.Branch, "branch", "", "Branch name (default: CI-detected)")
 
 	// Tier A — threshold.

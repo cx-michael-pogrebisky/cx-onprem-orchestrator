@@ -53,6 +53,12 @@ Notes:
 - **KICS / Secrets** gate **wrapper-side**, so their mandatory JSON is parsed for
   per-severity (KICS) / total (2ms) counts.
 
+**Per-scanner overrides:** set a different format set for one engine with
+`--<engine>-report-formats <csv>` (e.g. `--sast-report-formats xml,pdf`,
+`--sca-report-formats json`). The [configuration builder](../tools/configurator.html)
+shows each scanner only the formats it supports (this exact table) and emits the
+right per-scanner flags for you.
+
 ## Examples
 
 ```bash

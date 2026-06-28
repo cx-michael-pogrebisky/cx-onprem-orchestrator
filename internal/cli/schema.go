@@ -31,13 +31,17 @@ type SchemaCommand struct {
 // (tools/configurator.html). It is generated from the live cobra command tree so
 // the builder can never drift from the real flags. Emit it with `schema --json`.
 type Schema struct {
-	Version       string          `json:"version"`
-	Command       string          `json:"command"` // the subcommand the flags belong to ("run")
-	Engines       []string        `json:"engines"`
-	Severities    []string        `json:"severities"`
-	ReportFormats []string        `json:"reportFormats"`
-	Commands      []SchemaCommand `json:"commands"`
-	Flags         []SchemaFlag    `json:"flags"`
+	Version       string   `json:"version"`
+	Command       string   `json:"command"` // the subcommand the flags belong to ("run")
+	Engines       []string `json:"engines"`
+	Severities    []string `json:"severities"`
+	ReportFormats []string `json:"reportFormats"` // union of all engines' unified formats
+	// EngineReportFormats lists, per engine token, the report formats THAT engine
+	// supports (and its mandatory one) — so the builder shows each scanner only its
+	// real options. Source of truth: internal/scanner.
+	EngineReportFormats map[string]scanner.EngineFormats `json:"engineReportFormats"`
+	Commands            []SchemaCommand                  `json:"commands"`
+	Flags               []SchemaFlag                     `json:"flags"`
 }
 
 func newSchemaCmd() *cobra.Command {
@@ -89,12 +93,23 @@ func BuildSchema() Schema {
 		severities = append(severities, string(s))
 	}
 
+	// Per-engine supported report formats (keyed by --scanners token).
+	tokenEngine := map[string]model.Engine{
+		"sast": model.EngineSAST, "sca": model.EngineSCA, "kics": model.EngineIaC,
+		"secrets": model.EngineSecrets, "containers": model.EngineContainers,
+	}
+	engineFormats := map[string]scanner.EngineFormats{}
+	for _, tok := range engineTokens {
+		engineFormats[tok] = scanner.EngineReportFormats(tokenEngine[tok])
+	}
+
 	return Schema{
-		Version:       Version,
-		Command:       "run",
-		Engines:       append([]string(nil), engineTokens...),
-		Severities:    severities,
-		ReportFormats: scanner.UnifiedReportFormats(),
+		Version:             Version,
+		Command:             "run",
+		Engines:             append([]string(nil), engineTokens...),
+		Severities:          severities,
+		ReportFormats:       scanner.UnifiedReportFormats(),
+		EngineReportFormats: engineFormats,
 		Commands: []SchemaCommand{
 			{Use: "run", Short: "Run the selected scanners and gate on thresholds"},
 			{Use: "validate", Short: "Resolve + validate config and print the native plan without scanning"},
@@ -125,7 +140,7 @@ func classifyFlag(name string) (group, engine string) {
 		}
 	}
 	switch name {
-	case "scanners", "source", "project-name", "branch":
+	case "scanners", "source", "project-name", "sast-project-name", "cx-project-name", "branch":
 		return "selection", ""
 	case "threshold":
 		return "threshold", ""

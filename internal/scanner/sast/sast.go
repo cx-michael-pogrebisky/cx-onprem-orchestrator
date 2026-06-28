@@ -123,7 +123,7 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 	// Reports. XML is mandatory (wrapper-side count recovery + summary); CxSAST can
 	// additionally emit PDF/CSV/RTF. SelectFormats warns on unsupported requests
 	// (e.g. json/sarif — the CxConsolePlugin does not produce those).
-	formats, fmtWarn := scanner.SelectFormats(cfg.ReportFormats, sastFormats, "xml")
+	formats, fmtWarn := scanner.SelectEngineFormats(model.EngineSAST, cfg.ReportFormats)
 	for _, f := range formats {
 		if flag, ok := sastReportFlag(f); ok {
 			args = append(args, flag, filepath.Join(outAbs, reportName+"."+f))
@@ -253,8 +253,6 @@ func teamProject(team, project string) string {
 }
 
 // sastFormats are the report formats the CxConsolePlugin can emit.
-var sastFormats = map[string]bool{"xml": true, "pdf": true, "csv": true, "rtf": true}
-
 // sastReportFlag maps a report format to its CxConsolePlugin -Report* flag.
 func sastReportFlag(format string) (string, bool) {
 	switch format {

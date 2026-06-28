@@ -58,14 +58,15 @@ function fresh() {
   Object.assign(S, {
     target:"local", os:"linux", runtime:"docker",
     scanners:{sast:true,sca:true,kics:true,secrets:true,containers:true},
-    source:"", projectName:"", branch:"",
+    source:"", projectName:"", sastProjectName:"", cxProjectName:"", branch:"",
     thresholds:[{engine:"sast",sev:"critical",limit:"1"},{engine:"sca",sev:"high",limit:"5"}],
-    filters:{}, reportFormats:{json:true,sarif:true}, outputPath:"reports", outputName:"",
+    filters:{}, outputPath:"reports", outputName:"",
     parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
     auth:"apikey", authEnv:{apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"",baseAuthUri:"",tenant:""},
-    sast:{server:"",userEnv:"CXSAST_USERNAME",passEnv:"CXSAST_PASSWORD",team:"CxServer/SP",java:""},
+    sast:{server:"",userEnv:"CXSAST_USERNAME",passEnv:"CXSAST_PASSWORD",team:"CxServer",java:""},
     tools:{scaResolver:"",sastPath:""}, passthrough:[],
   });
+  // engineFormats is seeded from the schema by the page itself; don't override it.
   return ctx;
 }
 const out = (ctx) => { ctx.__render(); return ctx.__out(); };
@@ -168,6 +169,42 @@ test("project name and team flags appear", () => {
   const o = out(c);
   assert.match(o, /--project-name myapp/);
   assert.match(o, /--sast-team CxServer\/SP/);
+});
+
+test("default CxSAST team is CxServer", () => {
+  assert.match(out(fresh()), /--sast-team CxServer\b/);
+});
+
+test("separate CxSAST and Cx1 project names", () => {
+  const c = fresh();
+  c.__state.projectName = "base"; c.__state.sastProjectName = "sastproj"; c.__state.cxProjectName = "cxproj";
+  const o = out(c);
+  assert.match(o, /--project-name base/);
+  assert.match(o, /--sast-project-name sastproj/);
+  assert.match(o, /--cx-project-name cxproj/);
+});
+
+test("per-scanner report formats: SCA json-only, no global --report-formats", () => {
+  const c = fresh(); c.__state.engineFormats.sca = { json: true };
+  const o = out(c);
+  assert.match(o, /--sca-report-formats json/);
+  assert.ok(!/--report-formats\s/.test(o), "no global --report-formats");
+});
+
+test("per-scanner report formats: SAST shows only xml/pdf/csv/rtf and adds pdf", () => {
+  const c = fresh();
+  // SAST never offers json/sarif — its schema-declared set is xml/pdf/csv/rtf.
+  const fmts = c.__state.engineFormats.sast;
+  for (const f of Object.keys(fmts)) assert.ok(["xml","pdf","csv","rtf"].includes(f), `SAST format ${f} valid`);
+  c.__state.engineFormats.sast = { xml: true, pdf: true };
+  assert.match(out(c), /--sast-report-formats (xml,pdf|pdf,xml)/);
+});
+
+test("default report formats emit no per-engine flags (defaults are implicit)", () => {
+  const o = out(fresh());
+  for (const e of ["sast","sca","kics","secrets","containers"]) {
+    assert.ok(!o.includes(`--${e}-report-formats`), `${e} uses default (no flag)`);
+  }
 });
 
 test("client-credentials wires the secret by ENV NAME only (never a value)", () => {
