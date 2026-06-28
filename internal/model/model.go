@@ -39,6 +39,12 @@ const (
 // orderedSeverities ranks severities from most to least severe for "worst" logic.
 var orderedSeverities = []Severity{SevCritical, SevHigh, SevMedium, SevLow, SevInfo}
 
+// OrderedSeverities returns the severities ranked most-to-least severe. Used by
+// the schema command (the config builder's severity enum).
+func OrderedSeverities() []Severity {
+	return append([]Severity(nil), orderedSeverities...)
+}
+
 // Rank returns a sortable rank where lower = more severe. SevTotal and unknowns
 // sort last.
 func (s Severity) Rank() int {

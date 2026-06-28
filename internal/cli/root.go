@@ -31,6 +31,7 @@ pass exact native flags to each engine, and reduces all results to one exit code
 		newDetectCmd(),
 		newValidateCmd(),
 		newRunCmd(),
+		newSchemaCmd(),
 	)
 	return root
 }

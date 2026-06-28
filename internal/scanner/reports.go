@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -34,6 +35,18 @@ func SelectFormats(requested []string, supported map[string]bool, mandatory stri
 		}
 	}
 	return selected, warnings
+}
+
+// UnifiedReportFormats returns the sorted set of accepted --report-formats tokens.
+// It is the single source of truth for the format enum (used by the `schema`
+// command that drives the config builder, so the two never drift).
+func UnifiedReportFormats() []string {
+	out := make([]string, 0, len(cxFormats))
+	for k := range cxFormats {
+		out = append(out, k)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // cxFormats maps unified report-format tokens to the cx (ast-cli) --report-format

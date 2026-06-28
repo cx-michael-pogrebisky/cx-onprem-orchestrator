@@ -3,6 +3,12 @@
 `cx-onprem-orchestrator` auto-detects the CI system and extracts branch / commit /
 repo / workspace, so you usually only pass `--scanners` and `--threshold`.
 
+> 🛠️ **Don't hand-write these snippets** — the **[configuration builder](../tools/configurator.html)**
+> (hosted: <https://cx-michael-pogrebisky.github.io/cx-onprem-orchestrator/>) generates
+> a ready-to-paste config for any target × OS × runtime (Docker / Podman / native),
+> with secrets wired by name. It's generated from the CLI's flag schema, so it stays
+> in sync.
+
 ## Image choice
 
 > ### ✅ Recommended: the **fat image**

@@ -29,6 +29,28 @@ jobs:
       # Fails if a pinned docker image digest in manifest.lock has drifted.
       - run: go run ./hack/verify-pins
 
+  configurator:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with: { go-version: "1.26", cache: true }
+      # The config builder (tools/configurator.html) is generated from the live CLI
+      # schema. Regenerate and fail if it drifts — i.e. a flag was added/changed
+      # without re-running `go run ./hack/gen-configurator`.
+      - run: go run ./hack/gen-configurator
+      - name: Fail if the configurator is out of date
+        run: |
+          if ! git diff --exit-code tools/configurator.html; then
+            echo "::error::tools/configurator.html is stale. Run 'go run ./hack/gen-configurator' and commit."
+            exit 1
+          fi
+      # Behaviour tests: Node logic (V8) + in-page self-test under headless Chrome
+      # (Blink). Firefox/Safari are covered locally / by the manual checklist
+      # (tools/configurator.TESTING.md). The runner skips browsers it can't find.
+      - name: Configurator behaviour tests
+        run: ./tools/run-browser-tests.sh
+
   docs-version-links:
     runs-on: ubuntu-latest
     steps:

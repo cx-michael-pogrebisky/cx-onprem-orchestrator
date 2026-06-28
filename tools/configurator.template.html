@@ -1,0 +1,929 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cx-onprem-orchestrator — configuration builder</title>
+<style>
+  :root {
+    --bg:#0e1116; --panel:#161b22; --panel2:#1c2230; --line:#2b3340; --fg:#e6edf3;
+    --muted:#9aa7b4; --accent:#4c8eff; --accent2:#3fb950; --warn:#d29922; --code:#0a0d12;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+         background:var(--bg); color:var(--fg); }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
+  header h1 { margin:0; font-size:18px; }
+  header .sub { color:var(--muted); font-size:12.5px; margin-top:3px; }
+  .wrap { display:grid; grid-template-columns: minmax(360px,1fr) minmax(420px,1.1fr); gap:0; min-height:calc(100vh - 70px); }
+  .form { padding:18px 20px; overflow:auto; border-right:1px solid var(--line); }
+  .out  { padding:18px 20px; background:var(--panel); position:sticky; top:0; align-self:start; height:calc(100vh - 70px); overflow:auto; }
+  @media (max-width:920px){ .wrap{ grid-template-columns:1fr; } .out{ position:static; height:auto; } }
+  fieldset { border:1px solid var(--line); border-radius:8px; margin:0 0 16px; padding:12px 14px; background:var(--panel2); }
+  legend { padding:0 6px; color:var(--accent); font-weight:600; font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; }
+  label { display:block; margin:8px 0 3px; font-size:12.5px; color:var(--muted); }
+  input[type=text], input[type=number], select {
+    width:100%; padding:7px 9px; background:var(--code); color:var(--fg);
+    border:1px solid var(--line); border-radius:6px; font:inherit; }
+  input[type=text]:focus, select:focus, input[type=number]:focus { outline:1px solid var(--accent); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .row > * { flex:1 1 auto; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .chip { display:inline-flex; align-items:center; gap:6px; background:var(--code); border:1px solid var(--line);
+          border-radius:999px; padding:5px 10px; cursor:pointer; user-select:none; font-size:12.5px; }
+  .chip input { accent-color:var(--accent); }
+  .chip.on { border-color:var(--accent); color:#cfe0ff; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; }
+  .seg button { background:var(--code); border:1px solid var(--line); color:var(--fg); border-radius:6px;
+                padding:6px 10px; cursor:pointer; font-size:12.5px; }
+  .seg button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .seg button:disabled { opacity:.4; cursor:not-allowed; }
+  .thr-row { display:grid; grid-template-columns: 1fr 1fr 70px 28px; gap:6px; margin-top:6px; align-items:center; }
+  .pass-row { display:grid; grid-template-columns: 1fr 2fr 28px; gap:6px; margin-top:6px; align-items:center; }
+  button.mini { background:var(--code); border:1px solid var(--line); color:var(--fg); border-radius:6px; cursor:pointer; padding:6px 8px; }
+  button.add { background:transparent; border:1px dashed var(--line); color:var(--muted); width:100%; padding:7px; border-radius:6px; cursor:pointer; margin-top:8px; }
+  .hint { color:var(--muted); font-size:11.5px; margin-top:4px; }
+  .out h2 { margin:0 0 6px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .filename { color:var(--accent2); font-size:12px; margin-bottom:8px; word-break:break-all; }
+  pre { background:var(--code); border:1px solid var(--line); border-radius:8px; padding:14px; overflow:auto;
+        font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; white-space:pre; margin:0; }
+  .toolbar { display:flex; gap:8px; margin-bottom:10px; align-items:center; }
+  .toolbar button { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:8px 12px; cursor:pointer; font-weight:600; }
+  .toolbar button.ghost { background:var(--code); border:1px solid var(--line); color:var(--fg); font-weight:400; }
+  .notes { margin-top:12px; }
+  .note { background:rgba(210,153,34,.08); border:1px solid rgba(210,153,34,.4); color:#f0d488;
+          border-radius:6px; padding:8px 10px; font-size:12px; margin-top:8px; }
+  .note.ok { background:rgba(63,185,80,.08); border-color:rgba(63,185,80,.4); color:#a5e0ad; }
+  .note.info { background:rgba(76,142,255,.08); border-color:rgba(76,142,255,.4); color:#bcd4ff; }
+  a { color:var(--accent); }
+  code { background:var(--code); padding:1px 5px; border-radius:4px; font-family:ui-monospace,monospace; font-size:12px; }
+  details { margin-top:6px; } summary { cursor:pointer; color:var(--muted); font-size:12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>cx-onprem-orchestrator — configuration builder</h1>
+  <div class="sub">Pick a target, OS, runtime, and options — get a ready-to-paste config. Runs entirely in your browser; secrets are referenced by name only, never entered here. <span id="schemaVer"></span></div>
+</header>
+
+<div class="wrap">
+  <div class="form" id="form"><!-- controls injected --></div>
+  <div class="out">
+    <div class="toolbar">
+      <button id="copyBtn">Copy</button>
+      <button id="dlBtn" class="ghost">Download</button>
+      <span class="hint" id="copyState"></span>
+    </div>
+    <h2>Generated configuration</h2>
+    <div class="filename" id="filename"></div>
+    <pre id="output">…</pre>
+    <div class="notes" id="notes"></div>
+  </div>
+</div>
+
+<script id="cxoo-schema" type="application/json">__CXOO_SCHEMA__</script>
+<script>
+"use strict";
+const SCHEMA = JSON.parse(document.getElementById("cxoo-schema").textContent);
+
+/* ---------- target / OS / runtime descriptors ---------- */
+// runtime: 'docker' | 'podman' | 'native'
+const OSES = [
+  { id:"linux",   label:"Linux" },
+  { id:"macos",   label:"macOS" },
+  { id:"windows", label:"Windows" },
+];
+
+// Per-CI descriptor. render is chosen by family + runtime + os.
+// containerImageRef: how the job names the fat image (image-directive) — null = use a `run` script step.
+const IMG = "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat";
+const TARGETS = {
+  local:     { label:"Local invocation", family:"local" },
+  github:    { label:"GitHub Actions",   family:"ci", file:".github/workflows/checkmarx.yml", lang:"yaml",
+               winHosted:true, winLabel:"windows-latest", winShell:"pwsh",
+               note:"Hosted Ubuntu runners ship Podman; the job-level container: is Docker/Moby and can't be swapped on hosted runners." },
+  gitlab:    { label:"GitLab CI", family:"ci", file:".gitlab-ci.yml", lang:"yaml",
+               winHosted:true, winLabel:"saas-windows-medium-amd64", winShell:"powershell",
+               note:"Shared runners' image: is Docker-backed; choose the runtime with a self-hosted runner." },
+  azure:     { label:"Azure DevOps", family:"ci", file:"azure-pipelines.yml", lang:"yaml",
+               winHosted:true, winLabel:"windows-latest", winShell:"pwsh",
+               note:"Microsoft-hosted container jobs are Docker-backed; for Podman use a script step or self-hosted agent." },
+  jenkins:   { label:"Jenkins", family:"jenkins", file:"Jenkinsfile", lang:"groovy",
+               winHosted:false, winLabel:"windows", winShell:"bat",
+               note:"No hosted runners — you own the agents, so install Podman or Docker as you prefer." },
+  bamboo:    { label:"Bamboo", family:"ci-script", file:"(Bamboo Script task)", lang:"bash",
+               winHosted:false, winLabel:"a Windows remote agent", winShell:"bat",
+               note:"Self-hosted remote agents only; pick the runtime you install." },
+  bitbucket: { label:"Bitbucket Pipelines", family:"ci", file:"bitbucket-pipelines.yml", lang:"yaml",
+               winHosted:false, winLabel:"a self-hosted Windows runner", winShell:"powershell", linuxOnlyCloud:true,
+               note:"Cloud Pipelines are Linux/Docker only and can't use Podman; for Podman or Windows use a self-hosted runner." },
+  teamcity:  { label:"TeamCity", family:"ci-script", file:"(TeamCity Command Line step)", lang:"bash",
+               winHosted:true, winLabel:"a Windows agent", winShell:"powershell",
+               note:"On self-hosted agents you choose the runtime." },
+  buildkite: { label:"Buildkite", family:"ci", file:".buildkite/pipeline.yml", lang:"yaml",
+               winHosted:false, winLabel:"a self-hosted Windows agent", winShell:"powershell",
+               note:"Hosted agents are Linux+macOS only; Windows via self-hosted agents." },
+  codebuild: { label:"AWS CodeBuild", family:"ci", file:"buildspec.yml", lang:"yaml",
+               winHosted:true, winLabel:"WINDOWS_SERVER_2022_CONTAINER", winShell:"powershell", winIsContainer:true,
+               note:"CodeBuild Windows environments are WINDOWS containers and cannot run the linux/amd64 image — use the native binary there." },
+  circleci:  { label:"CircleCI", family:"ci", file:".circleci/config.yml", lang:"yaml",
+               winHosted:true, winLabel:"win/server-2022", winShell:"powershell",
+               note:"The hosted Windows VM executor is fixed; for Podman use a self-hosted runner." },
+  travis:    { label:"Travis CI", family:"ci", file:".travis.yml", lang:"yaml",
+               winHosted:true, winLabel:"os: windows", winShell:"powershell",
+               note:"On Linux workers, services: [docker]; install Podman to use it instead." },
+  drone:     { label:"Drone CI", family:"ci", file:".drone.yml", lang:"yaml",
+               winHosted:false, winLabel:"platform os: windows", winShell:"powershell",
+               note:"Windows is self-hosted only (not on Drone Cloud)." },
+  semaphore: { label:"Semaphore", family:"ci", file:".semaphore/semaphore.yml", lang:"yaml",
+               winHosted:false, winLabel:"a self-hosted Windows agent", winShell:"powershell", linuxOnlyCloud:true,
+               note:"Cloud is Linux/macOS only; Windows via a self-hosted agent." },
+  appveyor:  { label:"AppVeyor", family:"ci", file:"appveyor.yml", lang:"yaml",
+               winHosted:true, winLabel:"Visual Studio 2022", winShell:"cmd", winFirst:true,
+               note:"AppVeyor is Windows-first; the fat image needs a Linux image (image: Ubuntu)." },
+  codefresh: { label:"Codefresh", family:"ci", file:"codefresh.yml", lang:"yaml",
+               winHosted:false, winLabel:"a Windows runtime (gated)", winShell:"powershell", linuxOnlyCloud:true,
+               note:"Standard runtime is Linux/Docker; Windows is gated/incubation." },
+};
+
+/* ---------- default state ---------- */
+const state = {
+  target:"local", os:"linux", runtime:"docker",
+  scanners:{ sast:true, sca:true, kics:true, secrets:true, containers:true },
+  source:"", projectName:"", branch:"",
+  thresholds:[ {engine:"sast", sev:"critical", limit:"1"} ],
+  filters:{}, // flagName -> value
+  reportFormats:{ json:true, sarif:true },
+  outputPath:"reports", outputName:"",
+  parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
+  auth:"apikey", // apikey | client-creds | (cxsast is always shown for sast)
+  authEnv:{ apikey:"CX1_APIKEY", clientId:"", clientSecretEnv:"CX_CLIENT_SECRET", baseUri:"", baseAuthUri:"", tenant:"" },
+  sast:{ server:"", userEnv:"CXSAST_USERNAME", passEnv:"CXSAST_PASSWORD", team:"CxServer/SP", java:"" },
+  tools:{ scaResolver:"", sastPath:"" },
+  passthrough:[], // {engine, value}
+};
+
+/* ---------- helpers ---------- */
+const ENGINE_LABELS = { sast:"SAST (CxSAST)", sca:"SCA", kics:"KICS (IaC)", secrets:"Secrets (2ms)", containers:"Container Security" };
+const flagDefault = (name) => { const f = SCHEMA.flags.find(x=>x.name===name); return f ? f.default : ""; };
+const flagUsage = (name) => { const f = SCHEMA.flags.find(x=>x.name===name); return f ? f.usage : ""; };
+function el(tag, attrs={}, ...kids){ const e=document.createElement(tag);
+  for(const k in attrs){ if(k==="class")e.className=attrs[k]; else if(k==="html")e.innerHTML=attrs[k]; else e.setAttribute(k,attrs[k]); }
+  for(const c of kids){ if(c==null)continue; e.append(c.nodeType?c:document.createTextNode(c)); } return e; }
+
+const needsQuote = (v) => v==="" || /[^A-Za-z0-9_,.:@/=+-]/.test(v);
+function qBash(v){ if(!needsQuote(v))return v; return '"'+v.replace(/(["\\$`])/g,"\\$1")+'"'; }
+function qPwsh(v){ if(!needsQuote(v))return v; return '"'+v.replace(/"/g,'""')+'"'; }
+function qYaml(v){ return v; } // values live inside block scalars; no quoting needed
+
+/* Build the engine/threshold argument pairs (binary-agnostic). */
+function selectedEngines(){ return SCHEMA.engines.filter(e=>state.scanners[e]); }
+function thresholdString(){
+  return state.thresholds.filter(t=>t.engine&&t.sev!==undefined&&t.limit!=="")
+    .map(t=> t.engine==="secrets-total" ? "secrets-total="+t.limit : t.engine+"-"+t.sev+"="+t.limit ).join(";");
+}
+function reportFormatList(){ return SCHEMA.reportFormats.filter(f=>state.reportFormats[f]); }
+
+/* Returns ordered array of {flag, value|null}. value null => valueless (bool/flag-only). */
+function buildArgPairs(){
+  const a=[]; const eng=selectedEngines();
+  a.push({flag:"--scanners", value: eng.length===SCHEMA.engines.length ? "all" : eng.join(",")});
+  const thr=thresholdString(); if(thr) a.push({flag:"--threshold", value:thr});
+  if(state.source) a.push({flag:"--source", value:state.source});
+  if(state.projectName) a.push({flag:"--project-name", value:state.projectName});
+  if(state.branch) a.push({flag:"--branch", value:state.branch});
+  // filters
+  for(const name in state.filters){ const v=state.filters[name]; if(!v) continue;
+    if(name==="use-gitignore"){ if(v) a.push({flag:"--use-gitignore", value:null}); } else a.push({flag:"--"+name, value:v}); }
+  // output
+  const rf=reportFormatList(); if(rf.length) a.push({flag:"--report-formats", value:rf.join(",")});
+  if(state.outputPath) a.push({flag:"--output-path", value:state.outputPath});
+  if(state.outputName) a.push({flag:"--output-name", value:state.outputName});
+  if(state.ignoreOnExit) a.push({flag:"--ignore-on-exit", value:state.ignoreOnExit});
+  // orchestration
+  if(state.parallel && state.parallel!=="0") a.push({flag:"--parallel", value:state.parallel});
+  if(state.failFast) a.push({flag:"--fail-fast", value:null});
+  if(state.timeout) a.push({flag:"--timeout", value:state.timeout});
+  if(state.onMissing) a.push({flag:"--on-missing", value:state.onMissing});
+  if(state.conflict) a.push({flag:"--conflict", value:state.conflict});
+  if(state.async) a.push({flag:"--async", value:null});
+  // auth — selectors only (names, not secrets)
+  if(state.auth==="apikey"){ if(state.authEnv.apikey && state.authEnv.apikey!=="CX1_APIKEY") a.push({flag:"--cx-apikey-env", value:state.authEnv.apikey}); }
+  else if(state.auth==="client-creds"){
+    if(state.authEnv.clientId) a.push({flag:"--cx-client-id", value:state.authEnv.clientId});
+    if(state.authEnv.clientSecretEnv) a.push({flag:"--cx-client-secret-env", value:state.authEnv.clientSecretEnv});
+    if(state.authEnv.baseUri) a.push({flag:"--cx-base-uri", value:state.authEnv.baseUri});
+    if(state.authEnv.baseAuthUri) a.push({flag:"--cx-base-auth-uri", value:state.authEnv.baseAuthUri});
+    if(state.authEnv.tenant) a.push({flag:"--cx-tenant", value:state.authEnv.tenant});
+  }
+  // sast auth (only meaningful if sast selected)
+  if(state.scanners.sast){
+    if(state.sast.server) a.push({flag:"--sast-server", value:state.sast.server});
+    if(state.sast.team) a.push({flag:"--sast-team", value:state.sast.team});
+    if(state.sast.java) a.push({flag:"--sast-java", value:state.sast.java});
+  }
+  // native tool paths (only for native runtime — the fat image sets these via env)
+  if(state.runtime==="native"){
+    if(state.scanners.sca && state.tools.scaResolver) a.push({flag:"--sca-resolver", value:state.tools.scaResolver});
+    if(state.scanners.sast && state.tools.sastPath) a.push({flag:"--sast-path", value:state.tools.sastPath});
+  }
+  // passthrough
+  for(const p of state.passthrough){ if(p.engine && p.value) a.push({flag:"--"+p.engine+"-arg", value:p.value, raw:true}); }
+  return a;
+}
+
+/* env var NAMES the run needs (for container -e and CI env: blocks). */
+function envNames(){
+  const s=new Set();
+  if(state.auth==="apikey") s.add(state.authEnv.apikey||"CX1_APIKEY");
+  if(state.auth==="client-creds"){ if(state.authEnv.clientSecretEnv) s.add(state.authEnv.clientSecretEnv); }
+  if(state.scanners.sast){ s.add(state.sast.userEnv||"CXSAST_USERNAME"); s.add(state.sast.passEnv||"CXSAST_PASSWORD");
+    if(state.sast.server==="") s.add("CXSAST_URL"); }
+  return [...s].filter(Boolean);
+}
+
+/* render arg pairs into one shell/pwsh/plain string with continuations */
+function renderArgs(pairs, mode, indent){
+  const q = mode==="pwsh"?qPwsh : mode==="yaml"?qYaml : qBash;
+  const cont = mode==="pwsh" ? " `" : mode==="yaml" ? "" : " \\";
+  const pad = " ".repeat(indent||0);
+  const toks = pairs.map(p=> p.value===null ? p.flag
+    : p.raw ? p.flag+"="+q(p.value)          // --engine-arg=value  (=-bound passthrough)
+    : p.flag+" "+q(p.value));
+  if(mode==="yaml"){ // join, wrapped, inside a block scalar — backslash continuations are fine in shell within | block
+    return toks.map((t,i)=> pad + t + (i<toks.length-1? " \\":"")).join("\n");
+  }
+  return toks.map((t,i)=> pad + t + (i<toks.length-1? cont:"")).join("\n");
+}
+
+/* ---------- renderers ---------- */
+const BIN_NIX = "cx-onprem-orchestrator";
+const BIN_WIN = "cx-onprem-orchestrator.exe";
+
+function dockerPodmanRun(pairs, runtime, os){
+  const bin = runtime==="podman"?"podman":"docker";
+  const mount = (runtime==="podman") ? '"$PWD":/work:Z' : '"$PWD":/work';
+  const evs = envNames().map(n=>"-e "+n).join(" ");
+  const head = `${bin} run --rm -v ${mount} -w /work \\\n  ${evs} \\\n  ${IMG} run`;
+  return head + " \\\n" + renderArgs(pairs, "bash", 2);
+}
+
+function localRender(pairs){
+  const notes=[];
+  if(state.os==="windows" && state.runtime!=="native"){
+    notes.push({k:"warn", t:"On Windows, containers need a Linux VM (WSL2/Hyper-V). Windows Server 2016 supports neither — use the native binary there. Podman also needs a one-time <code>podman machine init &amp;&amp; podman machine start</code>."});
+  }
+  if(state.runtime==="native"){
+    const bin = state.os==="windows"?BIN_WIN:BIN_NIX;
+    const mode = state.os==="windows"?"pwsh":"bash";
+    const evhint = "# Provide secrets as environment variables first (never on the command line):\n" +
+      envNames().map(n=> state.os==="windows" ? `#   $env:${n} = "…"` : `#   export ${n}=…`).join("\n");
+    notes.push({k:"info", t:"Native path: install the engine tools + a JRE 11+ on the host. See <a href=\"https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/blob/main/docs/ci/windows.md\">windows.md</a> / docs."});
+    return { text: evhint+"\n"+bin+" run"+(mode==="pwsh"?" `":" \\")+"\n"+renderArgs(pairs, mode, 2), notes, fname:null };
+  }
+  // docker / podman
+  const evhint = "# Export the referenced secrets in your shell first (values never go on argv):\n" +
+    envNames().map(n=>"#   export "+n+"=…").join("\n");
+  return { text: evhint+"\n"+dockerPodmanRun(pairs, state.runtime, state.os), notes, fname:null };
+}
+
+/* YAML env block for CI secret wiring (names only). */
+function envBlockYaml(indent, valTemplate){
+  const pad=" ".repeat(indent);
+  return envNames().map(n=> `${pad}${n}: ${valTemplate(n)}`).join("\n");
+}
+
+function ciContainerScript(pairs, runtime, indent){
+  // a `docker/podman run ...` invocation suitable for a script step
+  return dockerPodmanRun(pairs, runtime, "linux").split("\n").map(l=>" ".repeat(indent)+l).join("\n");
+}
+
+function nativeWinScript(pairs, shell, indent){
+  const mode = shell==="bat" ? "bat" : "pwsh";
+  if(mode==="bat"){
+    // single line: cmd has no continuation
+    const toks = pairs.map(p=> p.value===null?p.flag : p.raw?p.flag+"="+(needsQuote(p.value)?'"'+p.value+'"':p.value) : p.flag+" "+(needsQuote(p.value)?'"'+p.value+'"':p.value));
+    return " ".repeat(indent)+BIN_WIN+" run "+toks.join(" ");
+  }
+  const body = renderArgs(pairs,"pwsh",indent+2);
+  return " ".repeat(indent)+BIN_WIN+" run `\n"+body;
+}
+
+/* main CI renderer */
+function ciRender(){
+  const d=TARGETS[state.target]; const pairs=buildArgPairs(); const notes=[]; if(d.note) notes.push({k:"info",t:d.note});
+  const win = state.os==="windows";
+  if(win && !d.winHosted) notes.push({k:"warn", t:`${d.label} has no hosted Windows runners — use ${d.winLabel} (self-hosted) with the native binary.`});
+  if(win && d.winIsContainer) notes.push({k:"warn", t:"This CI's Windows environment is a Windows container and cannot run the linux/amd64 image — the snippet uses the native binary."});
+  if(!win && d.linuxOnlyCloud) notes.push({k:"ok", t:"Cloud is Linux/Docker — the fat image works directly here."});
+  let text="";
+  if(win){
+    text = winYaml(d, pairs);
+  } else {
+    text = linuxYaml(d, pairs);
+  }
+  return { text, notes, fname:d.file };
+}
+
+/* per-family Linux (container) YAML */
+function linuxYaml(d, pairs){
+  const rt=state.runtime; const eng=selectedEngines();
+  const runScript = ciContainerScript(pairs, rt==="native"?"docker":rt, 6);
+  switch(state.target){
+    case "github": return [
+`jobs:`,
+`  checkmarx:`,
+`    runs-on: ubuntu-latest`,
+`    steps:`,
+`      - uses: actions/checkout@v4`,
+`      - name: Checkmarx`,
+`        env:`,
+envBlockYaml(10, n=> "${{ secrets."+n+" }}"),
+`        run: |`,
+runScript,
+`      - if: always()`,
+`        uses: actions/upload-artifact@v4`,
+`        with: { name: cxoo-reports, path: ${state.outputPath||"reports"} }`,
+    ].join("\n");
+    case "gitlab": return [
+`checkmarx:`,
+`  variables: { GIT_DEPTH: "0" }`,
+`  # Secrets ${envNames().join(", ")} are masked CI/CD variables (auto-injected).`,
+`  script:`,
+`    - |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
+`  artifacts:`,
+`    when: always`,
+`    paths: [${state.outputPath||"reports"}/]`,
+    ].join("\n");
+    case "azure": return [
+`pool: { vmImage: 'ubuntu-latest' }`,
+`steps:`,
+`  - script: |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
+`    displayName: Checkmarx`,
+`    env:`,
+envBlockYaml(6, n=> "$("+n+")"),
+    ].join("\n");
+    case "bitbucket": return [
+`pipelines:`,
+`  custom:`,
+`    checkmarx:`,
+`      - step:`,
+`          name: Checkmarx`,
+`          services: [docker]`,
+`          script:`,
+`            - |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 14),
+`          artifacts: [${state.outputPath||"reports"}/**]`,
+    ].join("\n");
+    case "buildkite": return [
+`steps:`,
+`  - label: ":lock: Checkmarx"`,
+`    command: |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
+`    # Secrets ${envNames().join(", ")} come from the agent environment / secrets hooks.`,
+    ].join("\n");
+    case "codebuild": return [
+`version: 0.2`,
+`phases:`,
+`  build:`,
+`    commands:`,
+`      - |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 8),
+`artifacts:`,
+`  files: ['${state.outputPath||"reports"}/**/*']`,
+`# Secrets ${envNames().join(", ")} via env/secrets-manager in the CodeBuild project.`,
+    ].join("\n");
+    case "circleci": return [
+`version: 2.1`,
+`jobs:`,
+`  checkmarx:`,
+`    machine: { image: ubuntu-2204:current }`,
+`    steps:`,
+`      - checkout`,
+`      - run: |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 10),
+`      - store_artifacts: { path: ${state.outputPath||"reports"} }`,
+`workflows: { main: { jobs: [checkmarx] } }`,
+    ].join("\n");
+    case "travis": return [
+`os: linux`,
+`services: [docker]`,
+`script:`,
+`  - |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 4),
+`# Define ${envNames().join(", ")} as encrypted Travis env vars.`,
+    ].join("\n");
+    case "drone": return [
+`kind: pipeline`,
+`type: docker`,
+`name: checkmarx`,
+`steps:`,
+`  - name: scan`,
+`    image: ${IMG}`,
+`    environment:`,
+envNames().map(n=>`      ${n}: { from_secret: ${n.toLowerCase()} }`).join("\n"),
+`    commands:`,
+`      - cx-onprem-orchestrator run ${pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qBash(p.value):p.flag+" "+qBash(p.value))).join(" ")}`,
+    ].join("\n");
+    case "semaphore": return [
+`version: v1.0`,
+`name: Checkmarx`,
+`agent: { machine: { type: e1-standard-2, os_image: ubuntu2204 } }`,
+`blocks:`,
+`  - name: scan`,
+`    task:`,
+`      secrets:`,
+envNames().map(n=>`        - name: ${n.toLowerCase()}`).join("\n"),
+`      jobs:`,
+`        - name: run`,
+`          commands:`,
+`            - |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 14),
+    ].join("\n");
+    case "appveyor": return [
+`image: Ubuntu2204`,
+`services: [docker]`,
+`build_script:`,
+`  - sh: |`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
+`# Define ${envNames().join(", ")} as (encrypted) AppVeyor env vars.`,
+    ].join("\n");
+    case "codefresh": return [
+`version: "1.0"`,
+`steps:`,
+`  checkmarx:`,
+`    image: ${IMG}`,
+`    commands:`,
+`      - cx-onprem-orchestrator run ${pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qBash(p.value):p.flag+" "+qBash(p.value))).join(" ")}`,
+`    environment:`,
+envNames().map(n=>`      - ${n}=\${{${n}}}`).join("\n"),
+    ].join("\n");
+    case "jenkins": return jenkinsGroovy(pairs, false);
+    case "bamboo": return [
+`# Bamboo → Script task (Shell), routed to a Linux agent:`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 0),
+`# Bind ${envNames().join(", ")} as masked plan variables.`,
+    ].join("\n");
+    case "teamcity": return [
+`# TeamCity → Command Line build step (Linux agent):`,
+ciContainerScript(pairs, rt==="native"?"docker":rt, 0),
+`# Define ${envNames().join(", ")} as password-typed build parameters.`,
+    ].join("\n");
+    default: return ciContainerScript(pairs, rt==="native"?"docker":rt, 0);
+  }
+}
+
+/* per-CI Windows (native binary) snippet */
+function winYaml(d, pairs){
+  const sh=d.winShell;
+  switch(state.target){
+    case "github": return [
+`jobs:`,
+`  checkmarx:`,
+`    runs-on: ${d.winLabel}`,
+`    steps:`,
+`      - uses: actions/checkout@v4`,
+`      - name: Checkmarx (native)`,
+`        shell: pwsh`,
+`        env:`,
+envBlockYaml(10, n=> "${{ secrets."+n+" }}"),
+`        run: |`,
+nativeWinScript(pairs, "pwsh", 10),
+`      - if: always()`,
+`        uses: actions/upload-artifact@v4`,
+`        with: { name: cxoo-reports, path: ${state.outputPath||"reports"} }`,
+    ].join("\n");
+    case "azure": return [
+`pool: { vmImage: '${d.winLabel}' }`,
+`steps:`,
+`  - pwsh: |`,
+nativeWinScript(pairs,"pwsh",6),
+`    displayName: Checkmarx (native)`,
+`    env:`,
+envBlockYaml(6, n=> "$("+n+")"),
+    ].join("\n");
+    case "gitlab": return [
+`checkmarx:windows:`,
+`  tags: [${d.winLabel}]`,
+`  # ${envNames().join(", ")} are masked CI/CD variables.`,
+`  script:`,
+`    - |`,
+nativeWinScript(pairs,"pwsh",6),
+`  artifacts: { when: always, paths: [${state.outputPath||"reports"}/] }`,
+    ].join("\n");
+    case "appveyor": return [
+`image: ${d.winLabel}`,
+`build_script:`,
+`  - cmd: >`,
+nativeWinScript(pairs,"bat",6).replace(BIN_WIN, BIN_WIN), // single line
+`# ${envNames().join(", ")} as (encrypted) AppVeyor env vars — never on argv.`,
+    ].join("\n");
+    case "circleci": return [
+`version: 2.1`,
+`orbs: { win: circleci/windows@5.0 }`,
+`jobs:`,
+`  checkmarx:`,
+`    executor: win/server-2022`,
+`    steps:`,
+`      - checkout`,
+`      - run:`,
+`          shell: powershell.exe`,
+`          command: |`,
+nativeWinScript(pairs,"pwsh",12),
+`workflows: { main: { jobs: [checkmarx] } }`,
+    ].join("\n");
+    case "codebuild": return [
+`version: 0.2`,
+`# environment: WINDOWS_SERVER_2022_CONTAINER (native binary — Windows containers can't run the Linux image)`,
+`phases:`,
+`  build:`,
+`    commands:`,
+`      - |`,
+nativeWinScript(pairs,"pwsh",8),
+`# Provide ${envNames().join(", ")} via env / Secrets Manager in the CodeBuild project.`,
+    ].join("\n");
+    case "travis": return [
+`os: windows`,
+`script:`,
+`  - |`,
+nativeWinScript(pairs,"pwsh",4),
+`# ${envNames().join(", ")} as encrypted Travis env vars.`,
+    ].join("\n");
+    case "jenkins": return jenkinsGroovy(pairs, true);
+    case "bamboo": return [
+`# Bamboo → Script task (Windows interpreter) on ${d.winLabel}:`,
+nativeWinScript(pairs, d.winShell==="bat"?"bat":"pwsh", 0),
+`# Bind ${envNames().join(", ")} as masked plan variables.`,
+    ].join("\n");
+    case "teamcity": return [
+`# TeamCity → PowerShell build step on ${d.winLabel}:`,
+nativeWinScript(pairs,"pwsh",0),
+`# Define ${envNames().join(", ")} as password-typed build parameters.`,
+    ].join("\n");
+    case "buildkite": return [
+`steps:`,
+`  - label: ":lock: Checkmarx (Windows)"`,
+`    agents: { queue: "windows" }`,
+`    command: |`,
+nativeWinScript(pairs,"powershell",6),
+    ].join("\n");
+    case "drone": return [
+`kind: pipeline`,
+`type: exec`,
+`name: checkmarx-windows`,
+`platform: { os: windows, arch: amd64 }`,
+`steps:`,
+`  - name: scan`,
+`    commands:`,
+`      - ${BIN_WIN} run ${pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qPwsh(p.value):p.flag+" "+qPwsh(p.value))).join(" ")}`,
+    ].join("\n");
+    case "bitbucket": return [
+`# Bitbucket: Windows needs a SELF-HOSTED runner (cloud is Linux only).`,
+`pipelines:`,
+`  custom:`,
+`    checkmarx-windows:`,
+`      - step:`,
+`          runs-on: [self.hosted, windows]`,
+`          script:`,
+`            - |`,
+nativeWinScript(pairs,"powershell",14),
+    ].join("\n");
+    case "semaphore": return [
+`# Semaphore: Windows needs a SELF-HOSTED agent (cloud is Linux/macOS).`,
+`version: v1.0`,
+`name: Checkmarx (Windows)`,
+`agent: { machine: { type: self-hosted-windows } }`,
+`blocks:`,
+`  - name: scan`,
+`    task:`,
+`      jobs:`,
+`        - name: run`,
+`          commands:`,
+`            - |`,
+nativeWinScript(pairs,"powershell",14),
+    ].join("\n");
+    case "codefresh": return [
+`# Codefresh Windows runtime is gated (contact sales). Native binary:`,
+nativeWinScript(pairs,"powershell",0),
+    ].join("\n");
+    default: return nativeWinScript(pairs, sh==="bat"?"bat":"pwsh", 0);
+  }
+}
+
+function jenkinsGroovy(pairs, win){
+  if(win){
+    const oneLine = BIN_WIN+" run "+pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+(needsQuote(p.value)?'"'+p.value+'"':p.value):p.flag+" "+(needsQuote(p.value)?'"'+p.value+'"':p.value))).join(" ");
+    return [
+`pipeline {`,
+`  agent { label 'windows' }`,
+`  environment {`,
+envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}')`).join("\n"),
+`  }`,
+`  stages {`,
+`    stage('Checkmarx') {`,
+`      steps {`,
+`        bat '${oneLine.replace(/\\/g,"\\\\")}'`,
+`      }`,
+`    }`,
+`  }`,
+`  post { always { archiveArtifacts artifacts: '${state.outputPath||"reports"}/**', allowEmptyArchive: true } }`,
+`}`,
+    ].join("\n");
+  }
+  const runScript = ciContainerScript(pairs, state.runtime==="native"?"docker":state.runtime, 8);
+  return [
+`pipeline {`,
+`  agent {`,
+`    docker {`,
+`      image '${IMG}'`,
+`      args  '-v $WORKSPACE:/work -w /work'`,
+`    }`,
+`  }`,
+`  environment {`,
+envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}')`).join("\n"),
+`  }`,
+`  stages {`,
+`    stage('Checkmarx') {`,
+`      steps {`,
+`        sh '''`,
+"cx-onprem-orchestrator run "+pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qBash(p.value):p.flag+" "+qBash(p.value))).join(" "),
+`'''`,
+`      }`,
+`    }`,
+`  }`,
+`  post { always { archiveArtifacts artifacts: '${state.outputPath||"reports"}/**', allowEmptyArchive: true } }`,
+`}`,
+  ].join("\n");
+}
+
+/* ---------- top-level render ---------- */
+function render(){
+  let r;
+  if(state.target==="local") r=localRender(buildArgPairs());
+  else r=ciRender();
+  document.getElementById("output").textContent = r.text;
+  document.getElementById("filename").textContent = r.fname || "";
+  const nz=document.getElementById("notes"); nz.innerHTML="";
+  // validation: at least one engine
+  if(selectedEngines().length===0) r.notes.unshift({k:"warn", t:"Select at least one engine — <code>--scanners</code> is required."});
+  if(state.async && thresholdString()) r.notes.unshift({k:"warn", t:"<code>--async</code> is incompatible with <code>--threshold</code> (gating needs synchronous scans)."});
+  for(const n of (r.notes||[])) nz.append(el("div",{class:"note "+(n.k||""),html:n.t}));
+  window._cxooFilename = r.fname;
+}
+
+/* ---------- build the form ---------- */
+function seg(opts, cur, on){ const w=el("div",{class:"seg"});
+  for(const o of opts){ const b=el("button",{},o.label); if(o.id===cur)b.classList.add("on"); if(o.disabled)b.disabled=true;
+    b.onclick=()=>{ on(o.id); }; w.append(b);} return w; }
+
+function buildForm(){
+  const f=document.getElementById("form"); f.innerHTML="";
+
+  // Target / OS / Runtime
+  const fsTarget=el("fieldset",{}, el("legend",{},"Target & environment"));
+  fsTarget.append(el("label",{},"CI / CD target"));
+  const tsel=el("select",{});
+  for(const k in TARGETS) tsel.append(el("option",{value:k}, TARGETS[k].label));
+  tsel.value=state.target; tsel.onchange=()=>{ state.target=tsel.value; syncRuntimeForTarget(); buildForm(); render(); };
+  fsTarget.append(tsel);
+  fsTarget.append(el("label",{},"Operating system"));
+  fsTarget.append(seg(OSES, state.os, id=>{ state.os=id; syncRuntimeForTarget(); buildForm(); render(); }));
+  fsTarget.append(el("label",{},"Runtime"));
+  const rtOpts=[
+    {id:"docker", label:"Docker (fat image)"},
+    {id:"podman", label:"Podman (fat image)"},
+    {id:"native", label:"Native binary"},
+  ];
+  // Windows + container forces caveats; Server2016 native — leave to notes.
+  fsTarget.append(seg(rtOpts, state.runtime, id=>{ state.runtime=id; buildForm(); render(); }));
+  fsTarget.append(el("div",{class:"hint", html:"The fat image is <code>linux/amd64</code>. On Windows, containers need WSL2/Hyper-V; the <b>native binary</b> is the universal Windows path. <a href=\"https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/blob/main/docs/ci.md#container-runtime--docker-or-podman\">Docker vs Podman</a>."}));
+  f.append(fsTarget);
+
+  // Project & team — most-used fields, kept at the top.
+  const fsProj=el("fieldset",{}, el("legend",{},"Project & team — most used"));
+  fsProj.append(field("Project name — Cx1 & CxSAST (--project-name)","projectName","derived from repo if blank"));
+  fsProj.append(field("CxSAST team (--sast-team)","sast.team","e.g. CxServer/SP"));
+  fsProj.append(field("Branch (--branch)","branch","CI-detected if blank"));
+  fsProj.append(el("div",{class:"hint",html:"One <code>--project-name</code> is used for the Cx1 (SCA / Container Security) project <i>and</i> the CxSAST project; CxSAST prefixes it with the team, e.g. <code>CxServer\\SP\\&lt;name&gt;</code>."}));
+  f.append(fsProj);
+
+  // Engines
+  const fsEng=el("fieldset",{}, el("legend",{},"Engines (--scanners)"));
+  const chips=el("div",{class:"chips"});
+  for(const e of SCHEMA.engines){ const id="eng_"+e;
+    const lab=el("label",{class:"chip"+(state.scanners[e]?" on":"")});
+    const cb=el("input",{type:"checkbox"}); cb.checked=!!state.scanners[e];
+    cb.onchange=()=>{ state.scanners[e]=cb.checked; lab.classList.toggle("on",cb.checked); render(); };
+    lab.append(cb, ENGINE_LABELS[e]||e); chips.append(lab); }
+  fsEng.append(chips);
+  f.append(fsEng);
+
+  // Context
+  const fsCtx=el("fieldset",{}, el("legend",{},"Context (optional — CI auto-detects)"));
+  fsCtx.append(field("Source path (--source)","source","e.g. . or $CI_WORKSPACE"));
+  f.append(fsCtx);
+
+  // Thresholds
+  const fsThr=el("fieldset",{}, el("legend",{},"Thresholds (--threshold)"));
+  const thrWrap=el("div",{}); fsThr.append(thrWrap);
+  function drawThr(){ thrWrap.innerHTML="";
+    state.thresholds.forEach((t,i)=>{
+      const row=el("div",{class:"thr-row"});
+      const eng=el("select",{}); ["sast","sca","iac-security","containers","secrets-total"].forEach(o=>eng.append(el("option",{value:o},o)));
+      eng.value=t.engine; eng.onchange=()=>{ t.engine=eng.value; render(); };
+      const sev=el("select",{}); SCHEMA.severities.forEach(s=>sev.append(el("option",{value:s},s)));
+      sev.value=t.sev; sev.onchange=()=>{ t.sev=sev.value; render(); };
+      sev.disabled = (t.engine==="secrets-total");
+      const lim=el("input",{type:"number",min:"1",value:t.limit}); lim.oninput=()=>{ t.limit=lim.value; render(); };
+      const del=el("button",{class:"mini"},"✕"); del.onclick=()=>{ state.thresholds.splice(i,1); drawThr(); render(); };
+      row.append(eng,sev,lim,del); thrWrap.append(row);
+    });
+  }
+  drawThr();
+  const add=el("button",{class:"add"},"+ add threshold"); add.onclick=()=>{ state.thresholds.push({engine:"sast",sev:"high",limit:"10"}); drawThr(); render(); };
+  fsThr.append(add);
+  fsThr.append(el("div",{class:"hint",html:"Inclusive (<code>&ge;</code>), limit &ge; 1. <code>secrets-total</code> ignores severity."}));
+  f.append(fsThr);
+
+  // Filters
+  const fsFil=el("fieldset",{}, el("legend",{},"Filters (optional)"));
+  const filFlags=SCHEMA.flags.filter(x=>x.group==="filters");
+  const gi=el("label",{class:"chip"+(state.filters["use-gitignore"]?" on":"")});
+  const gicb=el("input",{type:"checkbox"}); gicb.checked=!!state.filters["use-gitignore"];
+  gicb.onchange=()=>{ state.filters["use-gitignore"]=gicb.checked; gi.classList.toggle("on",gicb.checked); render(); };
+  gi.append(gicb,"--use-gitignore"); fsFil.append(el("div",{class:"chips"},gi));
+  for(const ff of filFlags){ if(ff.name==="use-gitignore")continue;
+    fsFil.append(field("--"+ff.name, "filter:"+ff.name, ff.usage)); }
+  f.append(fsFil);
+
+  // Output
+  const fsOut=el("fieldset",{}, el("legend",{},"Output"));
+  fsOut.append(el("label",{},"Report formats (--report-formats)"));
+  const rfc=el("div",{class:"chips"});
+  for(const fmt of SCHEMA.reportFormats){ const lab=el("label",{class:"chip"+(state.reportFormats[fmt]?" on":"")});
+    const cb=el("input",{type:"checkbox"}); cb.checked=!!state.reportFormats[fmt];
+    cb.onchange=()=>{ state.reportFormats[fmt]=cb.checked; lab.classList.toggle("on",cb.checked); render(); };
+    lab.append(cb,fmt); rfc.append(lab); }
+  fsOut.append(rfc);
+  fsOut.append(field("Output path","outputPath","default ./cxoo-reports"));
+  fsOut.append(field("Output name","outputName","default cxoo"));
+  fsOut.append(el("label",{},"ignore-on-exit"));
+  const ioe=el("select",{}); ["","none","results","errors","all"].forEach(o=>ioe.append(el("option",{value:o},o||"(default)")));
+  ioe.value=state.ignoreOnExit; ioe.onchange=()=>{ state.ignoreOnExit=ioe.value; render(); }; fsOut.append(ioe);
+  f.append(fsOut);
+
+  // Orchestration
+  const fsOrc=el("fieldset",{}, el("legend",{},"Orchestration"));
+  fsOrc.append(field("Parallel engines (--parallel)","parallel","0 = sequential"));
+  const ffl=el("label",{class:"chip"+(state.failFast?" on":"")}); const ffc=el("input",{type:"checkbox"}); ffc.checked=state.failFast;
+  ffc.onchange=()=>{ state.failFast=ffc.checked; ffl.classList.toggle("on",ffc.checked); render(); }; ffl.append(ffc,"--fail-fast");
+  const asl=el("label",{class:"chip"+(state.async?" on":"")}); const asc=el("input",{type:"checkbox"}); asc.checked=state.async;
+  asc.onchange=()=>{ state.async=asc.checked; asl.classList.toggle("on",asc.checked); render(); }; asl.append(asc,"--async");
+  fsOrc.append(el("div",{class:"chips"}, ffl, asl));
+  fsOrc.append(field("Timeout (--timeout)","timeout","e.g. 30m"));
+  f.append(fsOrc);
+
+  // Auth
+  const fsAuth=el("fieldset",{}, el("legend",{},"Authentication (names only — never secrets)"));
+  fsAuth.append(el("label",{},"Cx1 auth (SCA / Containers)"));
+  fsAuth.append(seg([{id:"apikey",label:"API key"},{id:"client-creds",label:"OAuth2 client-credentials"}], state.auth, id=>{ state.auth=id; buildForm(); render(); }));
+  if(state.auth==="apikey"){ fsAuth.append(field("API-key env var (--cx-apikey-env)","authEnv.apikey","CX1_APIKEY")); }
+  else { fsAuth.append(field("Client ID (--cx-client-id)","authEnv.clientId",""));
+    fsAuth.append(field("Client-secret env (--cx-client-secret-env)","authEnv.clientSecretEnv","CX_CLIENT_SECRET"));
+    fsAuth.append(field("Base URI (--cx-base-uri)","authEnv.baseUri",""));
+    fsAuth.append(field("Auth URI (--cx-base-auth-uri)","authEnv.baseAuthUri",""));
+    fsAuth.append(field("Tenant (--cx-tenant)","authEnv.tenant","")); }
+  if(state.scanners.sast){
+    fsAuth.append(el("div",{class:"hint",html:"<b>CxSAST</b> (native on-prem) — team is set in <i>Project &amp; team</i> above:"}));
+    fsAuth.append(field("CxSAST server (--sast-server)","sast.server","default $CXSAST_URL"));
+    if(state.runtime==="native") fsAuth.append(field("Java (--sast-java)","sast.java","path to java(.exe) or JAVA_HOME"));
+  }
+  f.append(fsAuth);
+
+  // Native tool paths
+  if(state.runtime==="native"){
+    const fsTool=el("fieldset",{}, el("legend",{},"Native tool paths"));
+    if(state.scanners.sca) fsTool.append(field("ScaResolver (--sca-resolver)","tools.scaResolver","path to ScaResolver(.exe)"));
+    if(state.scanners.sast) fsTool.append(field("CxConsolePlugin (--sast-path)","tools.sastPath","plugin dir or jar"));
+    fsTool.append(el("div",{class:"hint",html:"Native mode: install cx, ScaResolver, kics, 2ms, the CxConsolePlugin and a JRE 11+ on the agent. See <a href=\"https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/blob/main/docs/ci/windows.md\">docs</a>."}));
+    f.append(fsTool);
+  }
+
+  // Passthrough
+  const fsPt=el("fieldset",{}, el("legend",{},"Raw passthrough (--<engine>-arg)"));
+  const ptWrap=el("div",{}); fsPt.append(ptWrap);
+  function drawPt(){ ptWrap.innerHTML="";
+    state.passthrough.forEach((p,i)=>{ const row=el("div",{class:"pass-row"});
+      const eng=el("select",{}); ["sast","sca","kics","secrets","containers","sca-resolver"].forEach(o=>eng.append(el("option",{value:o},o)));
+      eng.value=p.engine; eng.onchange=()=>{ p.engine=eng.value; render(); };
+      const val=el("input",{type:"text",value:p.value,placeholder:"e.g. -ReportPDF=report.pdf"}); val.oninput=()=>{ p.value=val.value; render(); };
+      const del=el("button",{class:"mini"},"✕"); del.onclick=()=>{ state.passthrough.splice(i,1); drawPt(); render(); };
+      row.append(eng,val,del); ptWrap.append(row);
+    });
+  }
+  drawPt();
+  const addPt=el("button",{class:"add"},"+ add passthrough arg"); addPt.onclick=()=>{ state.passthrough.push({engine:"sast",value:""}); drawPt(); render(); };
+  fsPt.append(addPt);
+  fsPt.append(el("div",{class:"hint",html:"Forwarded verbatim after wrapper-translated args (=-bound)."}));
+  f.append(fsPt);
+}
+
+/* a labelled text input bound to a dotted state path */
+function field(labelText, path, placeholder){
+  const wrap=el("div",{});
+  wrap.append(el("label",{}, labelText));
+  const inp=el("input",{type:"text", placeholder:placeholder||""});
+  inp.value = getPath(path); inp.oninput=()=>{ setPath(path, inp.value); render(); };
+  wrap.append(inp);
+  return wrap;
+}
+function getPath(path){
+  if(path.startsWith("filter:")) return state.filters[path.slice(7)]||"";
+  return path.split(".").reduce((o,k)=>o&&o[k]!==undefined?o[k]:"", state);
+}
+function setPath(path, val){
+  if(path.startsWith("filter:")){ state.filters[path.slice(7)]=val; return; }
+  const ks=path.split("."); let o=state; for(let i=0;i<ks.length-1;i++) o=o[ks[i]]; o[ks[ks.length-1]]=val;
+}
+
+function syncRuntimeForTarget(){
+  const d=TARGETS[state.target];
+  // On Windows, force native (the universal correct path) unless user picks otherwise — but keep their choice; notes will warn.
+  if(state.target==="codebuild" && state.os==="windows") state.runtime="native";
+}
+
+/* ---------- toolbar ---------- */
+// Copy with a fallback: the async Clipboard API needs a secure context (https or
+// localhost) and isn't available on file:// in some browsers, so fall back to a
+// temporary <textarea> + execCommand('copy') (works on older Safari/Edge/Firefox).
+async function copyText(text){
+  if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+    try{ await navigator.clipboard.writeText(text); return true; }catch(e){/* fall through */}
+  }
+  try{
+    const ta=document.createElement("textarea");
+    ta.value=text; ta.setAttribute("readonly","");
+    ta.style.position="fixed"; ta.style.top="-1000px"; ta.style.opacity="0";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok=document.execCommand("copy"); document.body.removeChild(ta); return ok;
+  }catch(e){ return false; }
+}
+document.getElementById("copyBtn").onclick=async()=>{
+  const ok=await copyText(document.getElementById("output").textContent);
+  setCopy(ok ? "Copied ✓" : "Copy failed — select the text manually");
+};
+document.getElementById("dlBtn").onclick=()=>{
+  const blob=new Blob([document.getElementById("output").textContent],{type:"text/plain"});
+  const a=el("a",{href:URL.createObjectURL(blob), download:(window._cxooFilename||"checkmarx-config.txt").split("/").pop()});
+  document.body.append(a); a.click(); a.remove();
+};
+function setCopy(m){ const s=document.getElementById("copyState"); s.textContent=m; setTimeout(()=>s.textContent="",2000); }
+
+document.getElementById("schemaVer").textContent = "Flags: "+SCHEMA.flags.length+" · engines: "+SCHEMA.engines.join("/");
+
+/* In-browser self-test — open the page with #selftest to run it in YOUR browser.
+   Drives representative configs through the real render path and shows a PASS/FAIL
+   banner. Used by the headless cross-browser tests (Chrome/Edge, Firefox) and
+   handy for verifying an exotic browser. No effect on the normal page. */
+function runSelfTest(){
+  const snapshot = JSON.stringify(state);
+  const reset = () => Object.assign(state, JSON.parse(snapshot));
+  const results = [];
+  function scn(name, mut, asserts){
+    reset(); if(mut) mut(); render();
+    const out = document.getElementById("output").textContent;
+    const notes = document.getElementById("notes").textContent || "";
+    let ok=true, msg="";
+    for(const a of asserts){ if(!a.c(out, notes)){ ok=false; msg+=" ["+a.d+"]"; } }
+    results.push({name, ok, msg});
+  }
+  const has=(s)=>(o)=>o.includes(s);
+  scn("local·linux·docker", ()=>{}, [{d:"docker run",c:has("docker run --rm")},{d:"-e CX1_APIKEY",c:has("-e CX1_APIKEY")},{d:"scanners all",c:has("--scanners all")}]);
+  scn("local·linux·podman", ()=>{state.runtime="podman";}, [{d:"podman run",c:has("podman run --rm")},{d:":Z mount",c:has(":/work:Z")}]);
+  scn("local·win·native", ()=>{state.os="windows";state.runtime="native";}, [{d:".exe",c:has("cx-onprem-orchestrator.exe run")},{d:"backtick",c:has(" `")}]);
+  scn("win·docker warns", ()=>{state.os="windows";state.runtime="docker";}, [{d:"WSL2 note",c:(o,n)=>n.includes("WSL2")}]);
+  scn("github·linux", ()=>{state.target="github";}, [{d:"ubuntu",c:has("runs-on: ubuntu-latest")},{d:"secrets env",c:has("${{ secrets.CX1_APIKEY }}")}]);
+  scn("github·win·native", ()=>{state.target="github";state.os="windows";state.runtime="native";}, [{d:"windows-latest",c:has("runs-on: windows-latest")},{d:".exe",c:has("cx-onprem-orchestrator.exe")}]);
+  scn("jenkins groovy", ()=>{state.target="jenkins";}, [{d:"pipeline{",c:has("pipeline {")},{d:"credentials",c:has("credentials(")}]);
+  scn("codebuild·win native", ()=>{state.target="codebuild";state.os="windows";}, [{d:".exe",c:has("cx-onprem-orchestrator.exe")},{d:"win-container note",c:(o,n)=>n.toLowerCase().includes("windows container")}]);
+  scn("project+team flags", ()=>{state.projectName="myapp";state.sast.team="CxServer/SP";}, [{d:"--project-name",c:has("--project-name myapp")},{d:"--sast-team",c:has("--sast-team CxServer/SP")}]);
+  scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);
+  reset(); render();
+
+  const pass=results.filter(r=>r.ok).length, total=results.length;
+  const fail=results.filter(r=>!r.ok).map(r=>" · "+r.name+r.msg).join("");
+  const banner=el("div",{id:"selftest-result"});
+  banner.textContent=(pass===total?"SELFTEST PASS ":"SELFTEST FAIL ")+pass+"/"+total+fail;
+  banner.setAttribute("style","position:fixed;top:0;left:0;right:0;z-index:9999;padding:10px;font:13px ui-monospace,monospace;color:#fff;background:"+(pass===total?"#1a7f37":"#b62324"));
+  document.body.append(banner);
+  document.title=(pass===total?"SELFTEST PASS ":"SELFTEST FAIL ")+pass+"/"+total;
+  try{ console.log(document.title+fail); }catch(e){}
+}
+
+buildForm(); render();
+if(typeof location!=="undefined" && location.hash==="#selftest") runSelfTest();
+</script>
+</body>
+</html>

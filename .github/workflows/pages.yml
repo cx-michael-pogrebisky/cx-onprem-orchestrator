@@ -1,0 +1,41 @@
+name: pages
+
+# Publishes the configuration builder (tools/configurator.html) to GitHub Pages as
+# the site index. The page is self-contained (single HTML file, no runtime deps).
+# Requires repo Settings → Pages → Source = "GitHub Actions" to be enabled once.
+on:
+  push:
+    branches: [main]
+    paths:
+      - tools/configurator.html
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Assemble site
+        run: |
+          mkdir -p _site
+          cp tools/configurator.html _site/index.html
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
+      - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

@@ -16,6 +16,12 @@ Drone, Semaphore, AppVeyor, Codefresh).
 | Container Security | `containers` | `cx scan create --scan-types container-security` | pass-through `cx --threshold` |
 | DAST | `dast` | *(post-v1)* | — |
 
+> 🛠️ **Configuration builder:** generate a ready-to-paste config for any CI system,
+> OS, and runtime (Docker / Podman / native) at
+> **<https://cx-michael-pogrebisky.github.io/cx-onprem-orchestrator/>** — or open
+> [`tools/configurator.html`](tools/configurator.html) locally (offline, nothing is
+> sent anywhere). It's generated from the CLI's own flag schema, so it never drifts.
+
 ## Install — use the fat image (recommended)
 
 **The fat image is the recommended way to run this tool.** It bundles the
