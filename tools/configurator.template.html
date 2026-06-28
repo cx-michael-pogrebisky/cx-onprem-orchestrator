@@ -58,6 +58,10 @@
           border-radius:6px; padding:8px 10px; font-size:12px; margin-top:8px; }
   .note.ok { background:rgba(63,185,80,.08); border-color:rgba(63,185,80,.4); color:#a5e0ad; }
   .note.info { background:rgba(76,142,255,.08); border-color:rgba(76,142,255,.4); color:#bcd4ff; }
+  .note.err { background:rgba(248,81,73,.12); border-color:rgba(248,81,73,.65); color:#ffb3ad; font-weight:600; }
+  .out.incomplete pre { border-color:#f85149; box-shadow:0 0 0 1px #f85149 inset; }
+  #outHead.bad { color:#ff8a82; }
+  input.bad-input { border-color:#f85149; outline:1px solid #f85149; background:rgba(248,81,73,.06); }
   a { color:var(--accent); }
   code { background:var(--code); padding:1px 5px; border-radius:4px; font-family:ui-monospace,monospace; font-size:12px; }
   details { margin-top:6px; } summary { cursor:pointer; color:var(--muted); font-size:12.5px; }
@@ -77,7 +81,7 @@
       <button id="dlBtn" class="ghost">Download</button>
       <span class="hint" id="copyState"></span>
     </div>
-    <h2>Generated configuration</h2>
+    <h2 id="outHead">Generated configuration</h2>
     <div class="filename" id="filename"></div>
     <pre id="output">…</pre>
     <div class="notes" id="notes"></div>
@@ -692,16 +696,66 @@ envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}'
 }
 
 /* ---------- top-level render ---------- */
+// validationErrors returns BLOCKING problems that make the output unusable as-is
+// (plain text, so it is safe to embed in the output banner and the notes).
+function validationErrors(){
+  const errs=[];
+  if(selectedEngines().length===0)
+    errs.push("Select at least one engine — --scanners is required.");
+  if(state.async && thresholdString())
+    errs.push("--async is incompatible with --threshold (gating needs synchronous scans).");
+  // OAuth2 client-credentials must be COMPLETE when a Cx1 engine (SCA/Containers) runs.
+  if(state.auth==="client-creds" && (state.scanners.sca || state.scanners.containers)){
+    const miss=[];
+    if(!state.authEnv.clientId)        miss.push("--cx-client-id");
+    if(!state.authEnv.clientSecretEnv) miss.push("--cx-client-secret-env (secret env-var name)");
+    if(!state.authEnv.baseUri)         miss.push("--cx-base-uri");
+    if(!state.authEnv.baseAuthUri)     miss.push("--cx-base-auth-uri");
+    if(!state.authEnv.tenant)          miss.push("--cx-tenant");
+    if(miss.length)
+      errs.push("OAuth2 client-credentials is INCOMPLETE — missing: "+miss.join(", ")+
+        ". Fill these (or switch Cx1 auth to API key); the configuration below cannot be used as-is.");
+  }
+  return errs;
+}
+
+// markRequired adds/removes the red highlight on empty required client-creds fields.
+function markRequired(){
+  const need = state.auth==="client-creds" && (state.scanners.sca || state.scanners.containers);
+  const fields = {
+    cc_clientId: state.authEnv.clientId, cc_clientSecretEnv: state.authEnv.clientSecretEnv,
+    cc_baseUri: state.authEnv.baseUri, cc_baseAuthUri: state.authEnv.baseAuthUri, cc_tenant: state.authEnv.tenant,
+  };
+  for(const id in fields){
+    const e=document.getElementById(id);
+    if(e && e.classList) e.classList.toggle("bad-input", need && !fields[id]);
+  }
+}
+
 function render(){
   let r;
   if(state.target==="local") r=localRender(buildArgPairs());
   else r=ciRender();
-  document.getElementById("output").textContent = r.text;
+  const errs = validationErrors();
+
+  let text = r.text;
+  if(errs.length){
+    const banner = "##### ⚠ INCOMPLETE CONFIGURATION — DO NOT USE AS-IS #####\n"
+      + errs.map(e=>"##### "+e).join("\n")
+      + "\n##### Resolve the highlighted issue(s) above; the command below is missing required parameters.\n\n";
+    text = banner + text;
+  }
+  document.getElementById("output").textContent = text;
   document.getElementById("filename").textContent = r.fname || "";
+
+  // Visual flags: heading + output border turn red when incomplete.
+  const head=document.getElementById("outHead");
+  if(head){ head.textContent = errs.length ? "Generated configuration — ⚠ INCOMPLETE" : "Generated configuration"; head.classList.toggle("bad", errs.length>0); }
+  const box=document.querySelector(".out"); if(box && box.classList) box.classList.toggle("incomplete", errs.length>0);
+  markRequired();
+
   const nz=document.getElementById("notes"); nz.innerHTML="";
-  // validation: at least one engine
-  if(selectedEngines().length===0) r.notes.unshift({k:"warn", t:"Select at least one engine — <code>--scanners</code> is required."});
-  if(state.async && thresholdString()) r.notes.unshift({k:"warn", t:"<code>--async</code> is incompatible with <code>--threshold</code> (gating needs synchronous scans)."});
+  for(const e of errs) nz.append(el("div",{class:"note err", html:e}));   // blocking errors first (red)
   for(const n of (r.notes||[])) nz.append(el("div",{class:"note "+(n.k||""),html:n.t}));
   window._cxooFilename = r.fname;
 }
@@ -841,11 +895,12 @@ function buildForm(){
   fsAuth.append(el("label",{},"Cx1 auth (SCA / Containers)"));
   fsAuth.append(seg([{id:"apikey",label:"API key"},{id:"client-creds",label:"OAuth2 client-credentials"}], state.auth, id=>{ state.auth=id; buildForm(); render(); }));
   if(state.auth==="apikey"){ fsAuth.append(field("API-key env var (--cx-apikey-env)","authEnv.apikey","CX1_APIKEY")); }
-  else { fsAuth.append(field("Client ID (--cx-client-id)","authEnv.clientId",""));
-    fsAuth.append(field("Client-secret env (--cx-client-secret-env)","authEnv.clientSecretEnv","CX_CLIENT_SECRET"));
-    fsAuth.append(field("Base URI (--cx-base-uri)","authEnv.baseUri",""));
-    fsAuth.append(field("Auth URI (--cx-base-auth-uri)","authEnv.baseAuthUri",""));
-    fsAuth.append(field("Tenant (--cx-tenant)","authEnv.tenant","")); }
+  else { fsAuth.append(el("div",{class:"hint",html:"OAuth2 client-credentials needs <b>all</b> of: client ID, client-secret env-var name, base URI, auth URI, tenant. Empty required fields are highlighted and the output is marked incomplete until filled."}));
+    fsAuth.append(field("Client ID (--cx-client-id)","authEnv.clientId","required","cc_clientId"));
+    fsAuth.append(field("Client-secret env (--cx-client-secret-env)","authEnv.clientSecretEnv","required — secret env-var name","cc_clientSecretEnv"));
+    fsAuth.append(field("Base URI (--cx-base-uri)","authEnv.baseUri","required, e.g. https://<region>.ast.checkmarx.net","cc_baseUri"));
+    fsAuth.append(field("Auth URI (--cx-base-auth-uri)","authEnv.baseAuthUri","required, e.g. https://<region>.iam.checkmarx.net","cc_baseAuthUri"));
+    fsAuth.append(field("Tenant (--cx-tenant)","authEnv.tenant","required","cc_tenant")); }
   if(state.scanners.sast){
     fsAuth.append(el("div",{class:"hint",html:"<b>CxSAST</b> (native on-prem) — team is set in <i>Project &amp; team</i> above:"}));
     fsAuth.append(field("CxSAST server (--sast-server)","sast.server","default $CXSAST_URL"));
@@ -883,11 +938,12 @@ function buildForm(){
   f.append(fsPt);
 }
 
-/* a labelled text input bound to a dotted state path */
-function field(labelText, path, placeholder){
+/* a labelled text input bound to a dotted state path (optional id for validation) */
+function field(labelText, path, placeholder, id){
   const wrap=el("div",{});
   wrap.append(el("label",{}, labelText));
   const inp=el("input",{type:"text", placeholder:placeholder||""});
+  if(id) inp.id=id;
   inp.value = getPath(path); inp.oninput=()=>{ setPath(path, inp.value); render(); };
   wrap.append(inp);
   return wrap;
@@ -967,6 +1023,9 @@ function runSelfTest(){
   scn("per-scanner formats: SCA json-only", ()=>{state.engineFormats.sca={json:true};}, [{d:"--sca-report-formats json",c:has("--sca-report-formats json")},{d:"no global --report-formats",c:(o)=>!o.includes("--report-formats ")}]);
   scn("per-scanner formats: SAST adds pdf", ()=>{state.engineFormats.sast={xml:true,pdf:true};}, [{d:"--sast-report-formats",c:(o)=>/--sast-report-formats (xml,pdf|pdf,xml)/.test(o)}]);
   scn("username on argv, password by env", ()=>{state.sast.user="admin";}, [{d:"--sast-user admin",c:has("--sast-user admin")},{d:"no CXSAST_USERNAME env",c:(o)=>!o.includes("CXSAST_USERNAME")},{d:"password still env",c:has("CXSAST_PASSWORD")}]);
+  scn("oauth incomplete → flagged", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"INCOMPLETE banner",c:has("INCOMPLETE")},{d:"lists missing base-uri",c:(o,n)=>n.includes("--cx-base-uri")&&n.includes("--cx-tenant")}]);
+  scn("oauth complete → no flag", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"https://a",baseAuthUri:"https://b",tenant:"t"};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")},{d:"--cx-client-id id",c:has("--cx-client-id id")}]);
+  scn("oauth incomplete but no Cx1 engine → OK", ()=>{state.auth="client-creds";state.scanners={sast:true,sca:false,kics:true,secrets:true,containers:false};state.authEnv={apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"no INCOMPLETE (no sca/containers)",c:(o)=>!o.includes("INCOMPLETE")}]);
   scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);
   reset(); render();
 

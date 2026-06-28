@@ -40,7 +40,8 @@ function load() {
   const getEl = (id) => (byId[id] ||= makeEl());
   byId["cxoo-schema"] = makeEl(); byId["cxoo-schema"].textContent = jsonM[1];
 
-  const document = { getElementById: getEl, createElement: () => makeEl(),
+  const document = { getElementById: getEl, querySelector: (sel) => getEl("__sel__" + sel),
+    createElement: () => makeEl(),
     createTextNode: (t) => ({ nodeType: 3, textContent: String(t) }), execCommand: () => true, body: makeEl() };
   const navigator = { clipboard: { writeText: async () => {} } };
   const ctx = { document, navigator, Blob: function(){}, URL: { createObjectURL: () => "blob:x" }, setTimeout, console, JSON };
@@ -260,4 +261,35 @@ test("selecting no engines warns that --scanners is required", () => {
 test("--async with --threshold warns (incompatible)", () => {
   const c = fresh(); c.__state.async = true;
   assert.match(notes(c).toLowerCase(), /async/);
+});
+
+test("incomplete OAuth2 client-credentials flags the output as INCOMPLETE", () => {
+  const c = fresh();
+  c.__state.auth = "client-creds";
+  Object.assign(c.__state.authEnv, { clientId: "id", clientSecretEnv: "CX_CLIENT_SECRET", baseUri: "", baseAuthUri: "", tenant: "" });
+  const o = out(c), n = notes(c);
+  assert.match(o, /INCOMPLETE CONFIGURATION — DO NOT USE AS-IS/, "output carries an INCOMPLETE banner");
+  assert.match(n, /INCOMPLETE/);
+  for (const f of ["--cx-base-uri", "--cx-base-auth-uri", "--cx-tenant"]) {
+    assert.ok(n.includes(f), `notes list missing ${f}`);
+  }
+  // Already-provided fields are NOT listed as missing.
+  assert.ok(!/missing:[^.]*--cx-client-id/.test(n), "client-id was provided, not flagged missing");
+});
+
+test("complete OAuth2 client-credentials is NOT flagged", () => {
+  const c = fresh();
+  c.__state.auth = "client-creds";
+  Object.assign(c.__state.authEnv, { clientId: "id", clientSecretEnv: "CX_CLIENT_SECRET", baseUri: "https://a", baseAuthUri: "https://b", tenant: "t" });
+  const o = out(c);
+  assert.ok(!o.includes("INCOMPLETE"), "complete config has no INCOMPLETE banner");
+  assert.match(o, /--cx-client-id id/);
+});
+
+test("incomplete OAuth without a Cx1 engine is fine (auth unused)", () => {
+  const c = fresh();
+  c.__state.auth = "client-creds";
+  c.__state.scanners = { sast: true, sca: false, kics: true, secrets: true, containers: false };
+  Object.assign(c.__state.authEnv, { clientId: "", clientSecretEnv: "", baseUri: "", baseAuthUri: "", tenant: "" });
+  assert.ok(!out(c).includes("INCOMPLETE"), "no Cx1 engine selected → OAuth completeness irrelevant");
 });
