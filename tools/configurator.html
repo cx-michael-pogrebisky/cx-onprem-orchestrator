@@ -828,17 +828,7 @@ function buildForm(){
   fsTarget.append(el("div",{class:"hint", html:"The fat image is <code>linux/amd64</code>. On Windows, containers need WSL2/Hyper-V; the <b>native binary</b> is the universal Windows path. <a href=\"https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/blob/main/docs/ci.md#container-runtime--docker-or-podman\">Docker vs Podman</a>."}));
   f.append(fsTarget);
 
-  // Project & team — most-used fields, kept at the top.
-  const fsProj=el("fieldset",{}, el("legend",{},"Project & team — most used"));
-  fsProj.append(field("Project name — default for all engines (--project-name)","projectName","derived from repo if blank"));
-  fsProj.append(field("CxSAST project name (--sast-project-name)","sastProjectName","overrides project name for CxSAST"));
-  fsProj.append(field("CxSAST team (--sast-team)","sast.team","default CxServer"));
-  fsProj.append(field("Cx1 project name — SCA & Container Security (--cx-project-name)","cxProjectName","overrides project name for Cx1"));
-  fsProj.append(field("Branch (--branch)","branch","CI-detected if blank"));
-  fsProj.append(el("div",{class:"hint",html:"CxSAST and Cx1 can use <b>separate</b> project names — fill the overrides, or leave them blank to use one name everywhere. CxSAST's project is <code>&lt;team&gt;\\&lt;name&gt;</code>, e.g. <code>CxServer\\&lt;name&gt;</code>."}));
-  f.append(fsProj);
-
-  // Engines
+  // Engines (kept above Project & team).
   const fsEng=el("fieldset",{}, el("legend",{},"Engines (--scanners)"));
   const chips=el("div",{class:"chips"});
   for(const e of SCHEMA.engines){ const id="eng_"+e;
@@ -848,6 +838,16 @@ function buildForm(){
     lab.append(cb, ENGINE_LABELS[e]||e); chips.append(lab); }
   fsEng.append(chips);
   f.append(fsEng);
+
+  // Project & team — most-used fields.
+  const fsProj=el("fieldset",{}, el("legend",{},"Project & team — most used"));
+  fsProj.append(field("Project name — default for all engines (--project-name)","projectName","derived from repo if blank"));
+  fsProj.append(field("CxSAST project name (--sast-project-name)","sastProjectName","overrides project name for CxSAST"));
+  fsProj.append(field("CxSAST team (--sast-team)","sast.team","default CxServer"));
+  fsProj.append(field("Cx1 project name — SCA & Container Security (--cx-project-name)","cxProjectName","overrides project name for Cx1"));
+  fsProj.append(field("Branch (--branch)","branch","CI-detected if blank"));
+  fsProj.append(el("div",{class:"hint",html:"CxSAST and Cx1 can use <b>separate</b> project names — fill the overrides, or leave them blank to use one name everywhere. CxSAST's project is <code>&lt;team&gt;\\&lt;name&gt;</code>, e.g. <code>CxServer\\&lt;name&gt;</code>."}));
+  f.append(fsProj);
 
   // CxSAST connection — literal non-secret values (server URL + username).
   if(state.scanners.sast){
