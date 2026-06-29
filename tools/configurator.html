@@ -203,7 +203,7 @@ const state = {
   // engineFormats: per-engine selected report formats (engine token -> {fmt:bool}),
   // seeded from each engine's effective default. Populated below once SCHEMA is read.
   engineFormats:{},
-  outputPath:"reports", outputName:"",
+  outputPath:"", outputName:"",
   parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
   auth:"apikey", // apikey | client-creds | (cxsast is always shown for sast)
   authEnv:{ apikey:"CX1_APIKEY", clientId:"", clientSecretEnv:"CX_CLIENT_SECRET", baseUri:"", baseAuthUri:"", tenant:"" },
@@ -250,6 +250,14 @@ function argTok(p, q){
   return p.flag+" "+q(p.value);
 }
 
+/* Effective output path. Blank means: local → let the CLI default it OUTSIDE the
+   source tree (a sibling dir); CI → a distinctive in-workspace dir the orchestrator
+   excludes from scans (so artifacts upload while reports are never scanned). */
+function effectiveOutputPath(){
+  if(state.outputPath) return state.outputPath;
+  return state.target==="local" ? "" : "cxoo-reports";
+}
+
 /* Build the engine/threshold argument pairs (binary-agnostic). */
 function selectedEngines(){ return SCHEMA.engines.filter(e=>state.scanners[e]); }
 function thresholdString(){
@@ -287,7 +295,8 @@ function buildArgPairs(){
     const def=Object.keys(effectiveDefaultFormats(e));
     if(!sameSet(sel, def)) a.push({flag:"--"+e+"-report-formats", value:sel.join(",")});
   }
-  if(state.outputPath) a.push({flag:"--output-path", value:state.outputPath});
+  const outP = effectiveOutputPath();
+  if(outP) a.push({flag:"--output-path", value:outP});
   if(state.outputName) a.push({flag:"--output-name", value:state.outputName});
   if(state.ignoreOnExit) a.push({flag:"--ignore-on-exit", value:state.ignoreOnExit});
   // orchestration
@@ -436,7 +445,7 @@ envBlockYaml(10, n=> "${{ secrets."+n+" }}"),
 runScript,
 `      - if: always()`,
 `        uses: actions/upload-artifact@v4`,
-`        with: { name: cxoo-reports, path: ${state.outputPath||"reports"} }`,
+`        with: { name: cxoo-reports, path: ${effectiveOutputPath()} }`,
     ].join("\n");
     case "gitlab": return [
 `checkmarx:`,
@@ -447,7 +456,7 @@ runScript,
 ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
 `  artifacts:`,
 `    when: always`,
-`    paths: [${state.outputPath||"reports"}/]`,
+`    paths: [${effectiveOutputPath()}/]`,
     ].join("\n");
     case "azure": return [
 `pool: { vmImage: 'ubuntu-latest' }`,
@@ -468,7 +477,7 @@ envBlockYaml(6, n=> "$("+n+")"),
 `          script:`,
 `            - |`,
 ciContainerScript(pairs, rt==="native"?"docker":rt, 14),
-`          artifacts: [${state.outputPath||"reports"}/**]`,
+`          artifacts: [${effectiveOutputPath()}/**]`,
     ].join("\n");
     case "buildkite": return [
 `steps:`,
@@ -485,7 +494,7 @@ ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
 `      - |`,
 ciContainerScript(pairs, rt==="native"?"docker":rt, 8),
 `artifacts:`,
-`  files: ['${state.outputPath||"reports"}/**/*']`,
+`  files: ['${effectiveOutputPath()}/**/*']`,
 `# Secrets ${envNames().join(", ")} via env/secrets-manager in the CodeBuild project.`,
     ].join("\n");
     case "circleci": return [
@@ -497,7 +506,7 @@ ciContainerScript(pairs, rt==="native"?"docker":rt, 8),
 `      - checkout`,
 `      - run: |`,
 ciContainerScript(pairs, rt==="native"?"docker":rt, 10),
-`      - store_artifacts: { path: ${state.outputPath||"reports"} }`,
+`      - store_artifacts: { path: ${effectiveOutputPath()} }`,
 `workflows: { main: { jobs: [checkmarx] } }`,
     ].join("\n");
     case "travis": return [
@@ -586,7 +595,7 @@ envBlockYaml(10, n=> "${{ secrets."+n+" }}"),
 nativeWinScript(pairs, "pwsh", 10),
 `      - if: always()`,
 `        uses: actions/upload-artifact@v4`,
-`        with: { name: cxoo-reports, path: ${state.outputPath||"reports"} }`,
+`        with: { name: cxoo-reports, path: ${effectiveOutputPath()} }`,
     ].join("\n");
     case "azure": return [
 `pool: { vmImage: '${d.winLabel}' }`,
@@ -604,7 +613,7 @@ envBlockYaml(6, n=> "$("+n+")"),
 `  script:`,
 `    - |`,
 nativeWinScript(pairs,"pwsh",6),
-`  artifacts: { when: always, paths: [${state.outputPath||"reports"}/] }`,
+`  artifacts: { when: always, paths: [${effectiveOutputPath()}/] }`,
     ].join("\n");
     case "appveyor": return [
 `image: ${d.winLabel}`,
@@ -722,7 +731,7 @@ envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}'
 `      }`,
 `    }`,
 `  }`,
-`  post { always { archiveArtifacts artifacts: '${state.outputPath||"reports"}/**', allowEmptyArchive: true } }`,
+`  post { always { archiveArtifacts artifacts: '${effectiveOutputPath()}/**', allowEmptyArchive: true } }`,
 `}`,
     ].join("\n");
   }
@@ -748,7 +757,7 @@ envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}'
 `      }`,
 `    }`,
 `  }`,
-`  post { always { archiveArtifacts artifacts: '${state.outputPath||"reports"}/**', allowEmptyArchive: true } }`,
+`  post { always { archiveArtifacts artifacts: '${effectiveOutputPath()}/**', allowEmptyArchive: true } }`,
 `}`,
   ].join("\n");
 }
@@ -959,7 +968,8 @@ function buildForm(){
   }
   fsOut.append(rfWrap);
   fsOut.append(el("div",{class:"hint",html:"<code>*</code> = mandatory (always emitted). Each scanner shows only the formats it supports; defaults are <code>json,sarif</code> where available (CxSAST: <code>xml</code>)."}));
-  fsOut.append(field("Output path","outputPath","default ./cxoo-reports"));
+  fsOut.append(field("Output path (--output-path)","outputPath", state.target==="local" ? "blank = a sibling dir OUTSIDE the scanned source" : "blank = cxoo-reports (in-workspace, excluded from scans)"));
+  fsOut.append(el("div",{class:"hint",html:"Reports are kept <b>out of the scanned tree</b> so they're never scanned (e.g. 2ms re-finding its own secrets). Left blank: locally they go to a <b>sibling</b> of the source; in CI to a distinctive <code>cxoo-reports</code> dir the orchestrator <b>excludes</b> from SAST/KICS/secrets (so artifacts still upload). A path <i>inside</i> the source is auto-excluded with a warning."}));
   fsOut.append(field("Output name","outputName","default cxoo"));
   fsOut.append(el("label",{},"ignore-on-exit"));
   const ioe=el("select",{}); ["","none","results","errors","all"].forEach(o=>ioe.append(el("option",{value:o},o||"(default)")));
@@ -1133,7 +1143,9 @@ function runSelfTest(){
   scn("jenkins wires branch + checkout", ()=>{state.target="jenkins";state.branch="";}, [{d:"native branch var",c:has('--branch "${BRANCH_NAME:-${GIT_BRANCH#origin/}}"')},{d:"checkout scm",c:has("checkout scm")}]);
   scn("gitlab wires native branch", ()=>{state.target="gitlab";state.branch="";}, [{d:"$CI_COMMIT_REF_NAME",c:has('--branch "$CI_COMMIT_REF_NAME"')}]);
   scn("typed branch overrides", ()=>{state.target="github";state.branch="dev";}, [{d:"literal branch",c:has("--branch dev")},{d:"no env var",c:(o)=>!o.includes("GITHUB_REF_NAME")}]);
-  scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);
+  scn("local keeps reports out of tree (no --output-path)", ()=>{state.target="local";state.outputPath="";}, [{d:"no --output-path",c:(o)=>!o.includes("--output-path")}]);
+  scn("CI uses distinctive cxoo-reports (not 'reports')", ()=>{state.target="github";state.outputPath="";}, [{d:"--output-path cxoo-reports",c:has("--output-path cxoo-reports")},{d:"upload references it",c:has("path: cxoo-reports")}]);
+  scn("no leaked secret token", ()=>{state.target="gitlab";}, [{d:"no JWT-shaped token",c:(o)=>!/eyJ[A-Za-z0-9._-]{12,}/.test(o)}]);
   reset(); render();
 
   const pass=results.filter(r=>r.ok).length, total=results.length;

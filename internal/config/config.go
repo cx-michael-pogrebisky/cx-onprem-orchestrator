@@ -110,6 +110,9 @@ type RunConfig struct {
 
 	Filters Filters
 	Output  Output
+	// ReportsExcludeRel is the output dir relative to Source (slash-form) when reports
+	// live inside the scanned tree; "" when they are outside. Threaded to engines.
+	ReportsExcludeRel string
 
 	OnMissing OnMissingPolicy
 	Conflict  ConflictPolicy

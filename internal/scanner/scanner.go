@@ -19,19 +19,27 @@ import (
 // direction one-way: config builds these and hands them to scanners, and
 // scanners never import config.
 type Config struct {
-	Engine        model.Engine
-	Mode          string // "native" | "docker"
-	Path          string // binary/JAR/script path (native)
-	Image         string // image ref or digest (docker)
-	Source        string // workspace path with the code under test
-	ProjectName   string
-	Branch        string
-	OutputDir     string // wrapper-controlled per-engine report directory
-	ReportFormats []string
-	IgnoreOnExit  string   // none|results|errors|all (unified)
-	RawArgs       []string // Tier-B --<engine>-arg passthrough (verbatim, in order)
-	ResolverArgs  []string // SCA only: forwarded into --sca-resolver-params
-	Async         bool
+	Engine      model.Engine
+	Mode        string // "native" | "docker"
+	Path        string // binary/JAR/script path (native)
+	Image       string // image ref or digest (docker)
+	Source      string // workspace path with the code under test
+	ProjectName string
+	Branch      string
+	OutputDir   string // wrapper-controlled per-engine report directory
+	// ReportsExcludePath is the output directory relative to Source (slash-form)
+	// when the reports live INSIDE the scanned tree; "" when they are outside.
+	// Tree-scanning engines (SAST/KICS/secrets) exclude it so they never scan the
+	// reports. Empty in the normal case where reports are written outside Source.
+	ReportsExcludePath string
+	// ReportsExcludeName is the last path segment of ReportsExcludePath (folder name),
+	// for engines whose exclude matches a NAME not a path (2ms, CxSAST).
+	ReportsExcludeName string
+	ReportFormats      []string
+	IgnoreOnExit       string   // none|results|errors|all (unified)
+	RawArgs            []string // Tier-B --<engine>-arg passthrough (verbatim, in order)
+	ResolverArgs       []string // SCA only: forwarded into --sca-resolver-params
+	Async              bool
 
 	// Filters (raw cx-style values; each engine translates to its native flags).
 	FileFilter                 string

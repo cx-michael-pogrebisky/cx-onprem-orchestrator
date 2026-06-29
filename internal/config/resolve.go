@@ -125,7 +125,7 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 		},
 		Output: Output{
 			Formats:      splitCSV(f.ReportFormats),
-			Path:         firstNonEmpty(f.OutputPath, "./cxoo-reports"),
+			Path:         f.OutputPath, // defaulted below, once Source is known (kept OUTSIDE the tree)
 			Name:         firstNonEmpty(f.OutputName, "cxoo"),
 			IgnoreOnExit: firstNonEmpty(f.IgnoreOnExit, "none"),
 		},
@@ -166,6 +166,26 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 	// Source: flag > CI workspace > ".".
 	rc.Source = firstNonEmpty(f.Source, ciCtx.Workspace, ".")
 
+	// Reports must not live inside the scanned tree (scanners would pick them up —
+	// e.g. 2ms re-finding the secrets it just wrote). Default the output path to a
+	// sibling of the source (OUTSIDE the tree) with a distinctive name that won't
+	// collide with an existing in-source dir. If the user explicitly puts reports
+	// inside the source (e.g. for a CI that requires artifacts in the workspace),
+	// warn and exclude that path from the tree-scanning engines (the safety net).
+	if rc.Output.Path == "" {
+		rc.Output.Path = defaultReportsDir(rc.Source)
+	}
+	rc.ReportsExcludeRel = reportsExcludeRel(rc.Source, rc.Output.Path)
+	if rc.ReportsExcludeRel != "" {
+		rc.Warnings = append(rc.Warnings, fmt.Sprintf(
+			"output-path %q is INSIDE the scanned source; it will be excluded from SAST/KICS/secrets scans. Prefer an --output-path outside --source.",
+			rc.Output.Path))
+	} else if reportsIsSource(rc.Source, rc.Output.Path) {
+		rc.Warnings = append(rc.Warnings, fmt.Sprintf(
+			"output-path %q is the scanned source root; reports will be written into the tree under scan. Use a separate --output-path outside --source.",
+			rc.Output.Path))
+	}
+
 	// Policies with defaults.
 	rc.OnMissing = OnMissingPolicy(firstNonEmpty(f.OnMissing, string(OnMissingFail)))
 	rc.Conflict = ConflictPolicy(firstNonEmpty(f.Conflict, string(ConflictError)))
@@ -177,6 +197,52 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 
 	rc.EngineConfigs = buildEngineConfigs(rc, f)
 	return rc, nil
+}
+
+// defaultReportsDir returns a reports directory OUTSIDE the scanned source: a
+// sibling of the source named "cxoo-reports" (distinctive, so it won't collide with
+// an existing in-source directory). Falls back to "cxoo-reports" if abs fails.
+func defaultReportsDir(source string) string {
+	sa, err := filepath.Abs(source)
+	if err != nil {
+		return "cxoo-reports"
+	}
+	return filepath.Join(filepath.Dir(sa), "cxoo-reports")
+}
+
+// reportsExcludeRel returns the output path relative to source (slash-form) when
+// the reports live strictly INSIDE the source tree, else "". Used to exclude the
+// reports from tree-scanning engines when they can't be kept outside (e.g. CI).
+func reportsExcludeRel(source, outputPath string) string {
+	sa, e1 := filepath.Abs(source)
+	oa, e2 := filepath.Abs(outputPath)
+	if e1 != nil || e2 != nil {
+		return ""
+	}
+	rel, err := filepath.Rel(sa, oa)
+	if err != nil {
+		return ""
+	}
+	rel = filepath.ToSlash(rel)
+	if rel == "." || rel == "" || strings.HasPrefix(rel, "../") || filepath.IsAbs(rel) {
+		return "" // outside the tree (or the source root itself — handled separately)
+	}
+	return rel
+}
+
+// lastSlashSegment returns the final path segment of a slash-form path ("" → "").
+func lastSlashSegment(p string) string {
+	if i := strings.LastIndex(p, "/"); i >= 0 {
+		return p[i+1:]
+	}
+	return p
+}
+
+// reportsIsSource reports whether the output path IS the scanned source root.
+func reportsIsSource(source, outputPath string) bool {
+	sa, e1 := filepath.Abs(source)
+	oa, e2 := filepath.Abs(outputPath)
+	return e1 == nil && e2 == nil && sa == oa
 }
 
 // SecretValues returns the distinct, non-trivial secret VALUES referenced by the
@@ -232,20 +298,22 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 			}
 		}
 		cfg := &scanner.Config{
-			Engine:        e,
-			Mode:          mapGet(f.Mode, tok),
-			Path:          mapGet(f.Path, tok),
-			Image:         mapGet(f.Image, tok),
-			Source:        rc.Source,
-			ProjectName:   projectName,
-			Branch:        rc.Branch,
-			OutputDir:     filepath.Join(rc.Output.Path, string(e)),
-			ReportFormats: formats,
-			IgnoreOnExit:  rc.Output.IgnoreOnExit,
-			RawArgs:       mapGetSlice(f.RawArgs, tok),
-			Async:         rc.Async,
-			Extra:         map[string]string{},
-			EnvInject:     map[string]string{},
+			Engine:             e,
+			Mode:               mapGet(f.Mode, tok),
+			Path:               mapGet(f.Path, tok),
+			Image:              mapGet(f.Image, tok),
+			Source:             rc.Source,
+			ProjectName:        projectName,
+			Branch:             rc.Branch,
+			OutputDir:          filepath.Join(rc.Output.Path, string(e)),
+			ReportsExcludePath: rc.ReportsExcludeRel,
+			ReportsExcludeName: lastSlashSegment(rc.ReportsExcludeRel),
+			ReportFormats:      formats,
+			IgnoreOnExit:       rc.Output.IgnoreOnExit,
+			RawArgs:            mapGetSlice(f.RawArgs, tok),
+			Async:              rc.Async,
+			Extra:              map[string]string{},
+			EnvInject:          map[string]string{},
 
 			FileFilter:                 rc.Filters.FileFilter,
 			FileInclude:                rc.Filters.FileInclude,

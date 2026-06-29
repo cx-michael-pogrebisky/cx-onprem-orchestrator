@@ -5,10 +5,27 @@
 always exist — even when the run fails on a breach. CI steps can upload them with
 an always-run step.
 
+## Reports live OUTSIDE the scanned tree
+
+Reports must never sit inside `--source`, or the scanners would pick them up — most
+dangerously **2ms**, which would re-detect the secrets it just wrote into its own
+report. So:
+
+- **Default `--output-path` is a directory OUTSIDE the source** — a sibling of
+  `--source` named `cxoo-reports` (distinctive, so it never collides with an
+  existing `reports/` folder in the repo).
+- If you **must** keep reports inside the source (e.g. a CI that only uploads
+  artifacts from the workspace), the orchestrator **auto-excludes** that directory
+  from the tree-scanning engines (SAST `-LocationPathExclude`, KICS `--exclude-paths`,
+  2ms `--ignore-pattern`) and prints a warning. SCA (dependency manifests) and
+  Container Security (images) don't ingest report files, so they need no exclusion.
+- In CI, prefer a path outside the workspace where the platform allows it — e.g.
+  GitHub `--output-path "$RUNNER_TEMP/cxoo-reports"` and upload from there.
+
 ## Output layout
 
 ```
-<output-path>/                     # --output-path (default ./cxoo-reports)
+<output-path>/                     # default: a sibling of --source named cxoo-reports (OUTSIDE the tree)
 ├── run-summary.json               # always written: aggregate verdict + per-engine results
 ├── sast/sast.{xml,pdf,csv,rtf}
 ├── sca/sca.{json,sarif,…}

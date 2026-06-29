@@ -52,6 +52,22 @@ func TestBuildInvocation_Docker(t *testing.T) {
 	}
 }
 
+func TestBuildInvocation_ExcludesReportsDir(t *testing.T) {
+	s := &Scanner{}
+	cfg := &scanner.Config{
+		Engine: model.EngineIaC, Mode: "docker", Source: ".", OutputDir: "reports/iac",
+		ReportFormats: []string{"json"}, ReportsExcludePath: "reports", ReportsExcludeName: "reports",
+	}
+	inv, err := s.BuildInvocation(cfg, threshold.Plan{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	line := argLine(inv)
+	if !strings.Contains(line, "--exclude-paths") || !strings.Contains(line, "reports/**") {
+		t.Errorf("KICS must exclude its own reports dir, got: %s", line)
+	}
+}
+
 func TestParseResults(t *testing.T) {
 	dir := t.TempDir()
 	report := `{"total_counter":7,"severity_counters":{"CRITICAL":1,"HIGH":3,"MEDIUM":2,"LOW":1,"INFO":4,"TRACE":9}}`

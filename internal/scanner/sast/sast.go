@@ -123,8 +123,12 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, th threshold.Plan) (*mode
 
 	// Lossy glob -> CxSAST name-pattern filters.
 	names := filter.ToCxSASTNames(filter.ParseGlob(cfg.FileFilter), filter.ParseGlob(cfg.SASTFilter))
-	if len(names.Folders) > 0 {
-		args = append(args, "-LocationPathExclude", strings.Join(names.Folders, ","))
+	folders := names.Folders
+	if cfg.ReportsExcludeName != "" { // never scan our own report folder
+		folders = append(folders, cfg.ReportsExcludeName)
+	}
+	if len(folders) > 0 {
+		args = append(args, "-LocationPathExclude", strings.Join(folders, ","))
 	}
 	if len(names.Files) > 0 {
 		args = append(args, "-LocationFilesExclude", strings.Join(names.Files, ","))

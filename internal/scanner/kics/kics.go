@@ -85,8 +85,13 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 		"--no-progress", "--ci",
 		"--ignore-on-exit", "results",
 	}
-	if len(tr.Patterns) > 0 {
-		scanArgs = append(scanArgs, "--exclude-paths", strings.Join(tr.Patterns, ","))
+	excludes := append([]string{}, tr.Patterns...)
+	// Never scan our own report directory (when it lives inside the scanned tree).
+	if cfg.ReportsExcludePath != "" {
+		excludes = append(excludes, cfg.ReportsExcludePath, cfg.ReportsExcludePath+"/**")
+	}
+	if len(excludes) > 0 {
+		scanArgs = append(scanArgs, "--exclude-paths", strings.Join(excludes, ","))
 	}
 
 	inv := &model.Invocation{

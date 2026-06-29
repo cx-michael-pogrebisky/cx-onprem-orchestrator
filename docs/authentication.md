@@ -74,8 +74,8 @@ cx-onprem-orchestrator run --scanners sca,containers \
 | `--cx-client-id <id>` | `CX_CLIENT_ID` | yes (selects this mode) | OAuth2 client ID (not secret) |
 | `--cx-client-secret-env <NAME>` | reads `CX_CLIENT_SECRET` | one of env/file | env var holding the client secret |
 | `--cx-client-secret-file <PATH>` | — | one of env/file | `0600` file holding the client secret |
-| `--cx-base-uri <url>` | `CX_BASE_URI` | yes | AST system URI, e.g. `https://example.ast.checkmarx.net` |
-| `--cx-base-auth-uri <url>` | `CX_BASE_AUTH_URI` | yes | IAM/auth URI, e.g. `https://example.iam.checkmarx.net` |
+| `--cx-base-uri <url>` | `CX_BASE_URI` | yes | AST system URI, e.g. `https://<region>.ast.checkmarx.net` |
+| `--cx-base-auth-uri <url>` | `CX_BASE_AUTH_URI` | yes | IAM/auth URI, e.g. `https://<region>.iam.checkmarx.net` |
 | `--cx-tenant <name>` | `CX_TENANT` | yes | Cx1 tenant/realm |
 
 The client secret is injected as `CX_CLIENT_SECRET`; `--client-id`, `--base-uri`,

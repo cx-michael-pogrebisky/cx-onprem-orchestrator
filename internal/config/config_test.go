@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/internal/ci"
@@ -17,8 +18,9 @@ func TestSecretValues(t *testing.T) {
 		model.EngineSAST: {SASTPasswordEnv: "PW", SASTTokenEnv: "TOK"},
 		model.EngineSCA:  {CxAPIKeyEnv: "KEY", CxClientSecretEnv: "CS"},
 	}}
+	// Synthetic, obviously-non-credential test values (length >= 4 to pass the filter).
 	env := func(k string) string {
-		return map[string]string{"PW": "longpassword", "TOK": "abc", "KEY": "keyvalue123", "CS": "clientsecretX"}[k]
+		return map[string]string{"PW": "alpha-aaaa", "TOK": "bc", "KEY": "beta-bbbb", "CS": "gamma-cccc"}[k]
 	}
 	got := SecretValues(rc, env)
 	has := func(v string) bool {
@@ -29,12 +31,12 @@ func TestSecretValues(t *testing.T) {
 		}
 		return false
 	}
-	for _, want := range []string{"longpassword", "keyvalue123", "clientsecretX"} {
+	for _, want := range []string{"alpha-aaaa", "beta-bbbb", "gamma-cccc"} {
 		if !has(want) {
 			t.Errorf("SecretValues missing %q: %v", want, got)
 		}
 	}
-	if has("abc") { // len 3 — below the 4-char floor, excluded to avoid mangling output
+	if has("bc") { // below the 4-char floor, excluded to avoid mangling output
 		t.Errorf("short value should be excluded: %v", got)
 	}
 }
@@ -118,6 +120,59 @@ func TestResolve_PerEngineReportFormatsOverride(t *testing.T) {
 	if kics == nil || len(kics.ReportFormats) != 2 {
 		t.Errorf("kics should keep the global [json,sarif], got %v", kics.ReportFormats)
 	}
+}
+
+func TestResolve_ReportsKeptOutsideScannedTree(t *testing.T) {
+	env := testEnv(nil)
+	ci := ci.Context{Provider: ci.ProviderLocal}
+
+	// Default (no --output-path): reports default OUTSIDE the source, so no engine
+	// exclusion is needed and no warning is raised.
+	rc, err := Resolve(Flags{Scanners: "kics", Source: "."}, env, ci)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc.ReportsExcludeRel != "" {
+		t.Errorf("default output should be outside source (no exclusion), got rel=%q path=%q", rc.ReportsExcludeRel, rc.Output.Path)
+	}
+	if strings.Contains(rc.Output.Path, "/.") || rc.Output.Path == "" {
+		t.Errorf("unexpected default output path %q", rc.Output.Path)
+	}
+
+	// Explicit output INSIDE the source: excluded from scans + warned.
+	rc2, err := Resolve(Flags{Scanners: "kics,secrets,sast", Source: ".", OutputPath: "reports"}, env, ci)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc2.ReportsExcludeRel != "reports" {
+		t.Errorf("in-source output should set exclusion to %q, got %q", "reports", rc2.ReportsExcludeRel)
+	}
+	for _, e := range rc2.Scanners {
+		if got := rc2.EngineConfigs[e].ReportsExcludePath; got != "reports" {
+			t.Errorf("%s cfg.ReportsExcludePath = %q, want reports", e, got)
+		}
+	}
+	if !hasWarn(rc2.Warnings, "INSIDE the scanned source") {
+		t.Errorf("expected an inside-source warning, got %v", rc2.Warnings)
+	}
+
+	// Explicit output OUTSIDE the source: no exclusion.
+	rc3, err := Resolve(Flags{Scanners: "kics", Source: ".", OutputPath: "/tmp/cxoo-out-test"}, env, ci)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rc3.ReportsExcludeRel != "" {
+		t.Errorf("absolute out-of-tree output should not be excluded, got %q", rc3.ReportsExcludeRel)
+	}
+}
+
+func hasWarn(ws []string, sub string) bool {
+	for _, w := range ws {
+		if strings.Contains(w, sub) {
+			return true
+		}
+	}
+	return false
 }
 
 func TestValidate_ConflictDetection(t *testing.T) {

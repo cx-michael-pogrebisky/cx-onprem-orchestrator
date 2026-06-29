@@ -166,6 +166,26 @@ func TestBuildInvocation_TeamPrefix(t *testing.T) {
 	}
 }
 
+func TestBuildInvocation_ExcludesReportsDir(t *testing.T) {
+	t.Setenv("CXSAST_USERNAME", "u")
+	t.Setenv("CXSAST_PASSWORD", "p")
+	dir := fakePlugin(t)
+	cfg := &scanner.Config{
+		Engine: model.EngineSAST, Path: filepath.Join(dir, "runCxConsole.sh"),
+		Source: ".", ProjectName: "p", OutputDir: filepath.Join(dir, "out"),
+		SASTServer: "http://cx", SASTUserEnv: "CXSAST_USERNAME", SASTPasswordEnv: "CXSAST_PASSWORD",
+		ReportsExcludePath: "cxoo-reports", ReportsExcludeName: "cxoo-reports",
+		Extra: map[string]string{},
+	}
+	inv, err := (&Scanner{}).BuildInvocation(cfg, threshold.Plan{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(inv.Args, " "), "-LocationPathExclude cxoo-reports") {
+		t.Errorf("CxSAST must exclude its own reports folder, got: %s", strings.Join(inv.Args, " "))
+	}
+}
+
 func TestBuildInvocation_DirectUsername(t *testing.T) {
 	// Username is not a secret: --sast-user provides it directly, no env needed.
 	t.Setenv("CXSAST_PASSWORD", "pw")

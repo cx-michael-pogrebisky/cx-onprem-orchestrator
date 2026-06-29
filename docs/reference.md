@@ -53,7 +53,7 @@ with `cx-onprem-orchestrator run --help`.
 |---|---|---|
 | `--report-formats <csv>` | `json,sarif` | Formats to emit per engine (see [reports.md](reports.md)). |
 | `--<engine>-report-formats <csv>` | inherits `--report-formats` | Per-engine override of the format set for one engine only, e.g. `--sca-report-formats json` to skip the slow SCA SARIF export. |
-| `--output-path <dir>` | `./cxoo-reports` | Root directory for collected reports + `run-summary.json`. |
+| `--output-path <dir>` | sibling of `--source` (`cxoo-reports`, **outside the scanned tree**) | Root dir for collected reports + `run-summary.json`. Kept outside `--source` by default so scanners never scan it; if set **inside** `--source` it is auto-excluded from SAST/KICS/secrets (with a warning). |
 | `--output-name <prefix>` | `cxoo` | Summary metadata base name. |
 | `--ignore-on-exit <mode>` | `none` | `none|results|errors|all` — unified mapping onto kics/2ms/dast exit suppression. |
 

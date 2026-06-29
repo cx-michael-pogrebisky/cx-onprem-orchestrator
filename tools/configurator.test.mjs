@@ -63,7 +63,7 @@ function fresh() {
     scanners:{sast:true,sca:true,kics:true,secrets:true,containers:true},
     source:"", projectName:"", sastProjectName:"", cxProjectName:"", branch:"",
     thresholds:[{engine:"sast",sev:"critical",limit:"1"},{engine:"sca",sev:"high",limit:"5"}],
-    filters:{}, outputPath:"reports", outputName:"",
+    filters:{}, outputPath:"", outputName:"",
     parallel:"8", failFast:false, timeout:"", onMissing:"", conflict:"", async:false, ignoreOnExit:"",
     auth:"apikey", authEnv:{apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"",baseAuthUri:"",tenant:""},
     sast:{server:"",user:"",userEnv:"CXSAST_USERNAME",passEnv:"CXSAST_PASSWORD",team:"CxServer",java:""},
@@ -279,9 +279,12 @@ test("real secrets are never given as direct VALUE flags (only by env name)", ()
 });
 
 test("no secret VALUES ever appear in output", () => {
+  // Detect a leaked JWT-shaped token (the shape of a Cx1 API key) or a value
+  // assigned to a secret flag. No real credential is embedded in this test.
+  const leak = /eyJ[A-Za-z0-9._-]{12,}|--(cx-apikey|cx-client-secret|sast-password|sast-token)[= ]\S/;
   for (const t of ["local","github","gitlab","jenkins","azure"]) {
     const c = fresh(); c.__state.target = t;
-    assert.ok(!/eyJ|REDACTED|password=\S{6}/.test(out(c)), `${t} leaks no secret value`);
+    assert.ok(!leak.test(out(c)), `${t} leaks no secret value`);
   }
 });
 
@@ -389,6 +392,24 @@ test("Jenkins pipeline checks out the repo (source + GIT_BRANCH)", () => {
 test("CodeBuild has no clean branch var, so it relies on auto-detection (no --branch)", () => {
   const c = fresh(); c.__state.target = "codebuild"; c.__state.branch = "";
   assert.ok(!out(c).includes("--branch"), "codebuild leaves branch to auto-detect");
+});
+
+test("local omits --output-path so the CLI writes reports OUTSIDE the source", () => {
+  const c = fresh(); c.__state.target = "local"; c.__state.outputPath = "";
+  assert.ok(!out(c).includes("--output-path"), "local relies on the CLI's outside-the-tree default");
+});
+
+test("CI defaults to a distinctive in-workspace cxoo-reports (uploadable, excluded)", () => {
+  const c = fresh(); c.__state.target = "github"; c.__state.outputPath = "";
+  const o = out(c);
+  assert.match(o, /--output-path cxoo-reports/);
+  assert.match(o, /path: cxoo-reports/);            // artifact upload references the same dir
+  assert.ok(!/--output-path reports\b/.test(o), "does not use the collision-prone 'reports'");
+});
+
+test("an explicit output path is honored verbatim", () => {
+  const c = fresh(); c.__state.target = "gitlab"; c.__state.outputPath = "out/scan";
+  assert.match(out(c), /--output-path out\/scan/);
 });
 
 test("local target does not inject a branch variable (git auto-detect)", () => {

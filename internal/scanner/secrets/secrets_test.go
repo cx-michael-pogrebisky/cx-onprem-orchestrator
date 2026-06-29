@@ -44,6 +44,25 @@ func TestBuildInvocation_Docker(t *testing.T) {
 	}
 }
 
+func TestBuildInvocation_ExcludesReportsDir(t *testing.T) {
+	// 2ms must never scan its own report folder (it would re-detect the secrets it
+	// wrote). The reports folder name is excluded via --ignore-pattern (a NAME match).
+	for _, mode := range []string{"native", "docker"} {
+		cfg := &scanner.Config{
+			Engine: model.EngineSecrets, Mode: mode, Source: ".", OutputDir: "cxoo-reports/secrets",
+			ReportsExcludePath: "cxoo-reports", ReportsExcludeName: "cxoo-reports",
+		}
+		inv, err := (&Scanner{}).BuildInvocation(cfg, threshold.Plan{})
+		if err != nil {
+			t.Fatalf("%s build: %v", mode, err)
+		}
+		line := inv.Path + " " + strings.Join(inv.Args, " ")
+		if !strings.Contains(line, "--ignore-pattern cxoo-reports") {
+			t.Errorf("%s: 2ms must ignore its own reports dir, got: %s", mode, line)
+		}
+	}
+}
+
 func TestParseResults(t *testing.T) {
 	dir := t.TempDir()
 	rep := `{"totalItemsScanned":3,"totalSecretsFound":2,"results":{"a":[{}],"b":[{}]}}`

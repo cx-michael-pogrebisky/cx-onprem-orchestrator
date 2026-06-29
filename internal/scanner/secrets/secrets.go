@@ -93,6 +93,9 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 		for _, p := range tr.Patterns {
 			args = append(args, "--ignore-pattern", p)
 		}
+		if cfg.ReportsExcludeName != "" { // never scan our own report folder
+			args = append(args, "--ignore-pattern", cfg.ReportsExcludeName)
+		}
 		args = append(args, cfg.RawArgs...)
 		inv.Path = bin
 		inv.Args = args
@@ -128,6 +131,9 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 		}
 		for _, p := range tr.Patterns {
 			args = append(args, "--ignore-pattern", p)
+		}
+		if cfg.ReportsExcludeName != "" { // never scan our own report folder
+			args = append(args, "--ignore-pattern", cfg.ReportsExcludeName)
 		}
 		args = append(args, cfg.RawArgs...)
 		inv.Path = "docker"
