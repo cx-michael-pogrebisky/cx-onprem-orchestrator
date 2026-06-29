@@ -206,7 +206,7 @@ const state = {
   auth:"apikey", // apikey | client-creds | (cxsast is always shown for sast)
   authEnv:{ apikey:"CX1_APIKEY", clientId:"", clientSecretEnv:"CX_CLIENT_SECRET", baseUri:"", baseAuthUri:"", tenant:"" },
   sast:{ server:"", user:"", userEnv:"CXSAST_USERNAME", passEnv:"CXSAST_PASSWORD", team:"CxServer", java:"" },
-  tools:{ scaResolver:"", sastPath:"" },
+  tools:{ scaResolver:"", sastPath:"", kicsQueries:"" },
   passthrough:[], // {engine, value}
 };
 // Seed per-engine report-format selections from each engine's effective default.
@@ -299,6 +299,7 @@ function buildArgPairs(){
   if(state.runtime==="native"){
     if(state.scanners.sca && state.tools.scaResolver) a.push({flag:"--sca-resolver", value:state.tools.scaResolver});
     if(state.scanners.sast && state.tools.sastPath) a.push({flag:"--sast-path", value:state.tools.sastPath});
+    if(state.scanners.kics && state.tools.kicsQueries) a.push({flag:"--kics-queries", value:state.tools.kicsQueries});
   }
   // passthrough
   for(const p of state.passthrough){ if(p.engine && p.value) a.push({flag:"--"+p.engine+"-arg", value:p.value, raw:true}); }
@@ -754,6 +755,16 @@ function validationErrors(){
       errs.push("OAuth2 client-credentials is INCOMPLETE — missing: "+miss.join(", ")+
         ". Fill these (or switch Cx1 auth to API key); the configuration below cannot be used as-is.");
   }
+  // Native runtime: explicit resource paths that have no PATH fallback. The fat
+  // image (docker/podman) provides these via $CXOO_*, so only check native.
+  if(state.runtime==="native"){
+    if(state.scanners.sast && !state.tools.sastPath)
+      errs.push("SAST (native runtime): the CxConsolePlugin path is missing — set --sast-path (or $CXOO_SAST_PATH).");
+    if(state.scanners.sca && !state.tools.scaResolver)
+      errs.push("SCA (native runtime): the ScaResolver path is missing — set --sca-resolver (or $CXOO_SCA_RESOLVER).");
+    if(state.scanners.kics && !state.tools.kicsQueries)
+      errs.push("KICS (native runtime): the query-assets path is missing — set --kics-queries (or $CXOO_KICS_QUERIES_PATH).");
+  }
   return errs;
 }
 
@@ -767,6 +778,17 @@ function markRequired(){
   for(const id in fields){
     const e=document.getElementById(id);
     if(e && e.classList) e.classList.toggle("bad-input", need && !fields[id]);
+  }
+  // Native-runtime resource paths.
+  const nat = state.runtime==="native";
+  const ntf = {
+    nt_sastPath:    state.scanners.sast && !state.tools.sastPath,
+    nt_scaResolver: state.scanners.sca && !state.tools.scaResolver,
+    nt_kicsQueries: state.scanners.kics && !state.tools.kicsQueries,
+  };
+  for(const id in ntf){
+    const e=document.getElementById(id);
+    if(e && e.classList) e.classList.toggle("bad-input", nat && ntf[id]);
   }
 }
 
@@ -957,10 +979,11 @@ function buildForm(){
 
   // Native tool paths
   if(state.runtime==="native"){
-    const fsTool=el("fieldset",{}, el("legend",{},"Native tool paths"));
-    if(state.scanners.sca) fsTool.append(field("ScaResolver (--sca-resolver)","tools.scaResolver","path to ScaResolver(.exe)"));
-    if(state.scanners.sast) fsTool.append(field("CxConsolePlugin (--sast-path)","tools.sastPath","plugin dir or jar"));
-    fsTool.append(el("div",{class:"hint",html:"Native mode: install cx, ScaResolver, kics, 2ms, the CxConsolePlugin and a JRE 11+ on the agent. See <a href=\"https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/blob/main/docs/ci/windows.md\">docs</a>."}));
+    const fsTool=el("fieldset",{}, el("legend",{},"Native tool paths — required in native runtime"));
+    if(state.scanners.sca) fsTool.append(field("ScaResolver (--sca-resolver)","tools.scaResolver","path to ScaResolver(.exe) — needs Configuration.yml beside it","nt_scaResolver"));
+    if(state.scanners.sast) fsTool.append(field("CxConsolePlugin (--sast-path)","tools.sastPath","plugin dir or jar","nt_sastPath"));
+    if(state.scanners.kics) fsTool.append(field("KICS query assets (--kics-queries)","tools.kicsQueries","path to the kics assets/queries dir","nt_kicsQueries"));
+    fsTool.append(el("div",{class:"hint",html:"These resource paths have no PATH fallback — provide them (or the matching <code>$CXOO_SCA_RESOLVER</code> / <code>$CXOO_SAST_PATH</code> / <code>$CXOO_KICS_QUERIES_PATH</code>). Also install cx, kics, 2ms and a JRE 11+ on the agent (on PATH). See <a href=\"https://github.com/cx-michael-pogrebisky/cx-onprem-orchestrator/blob/main/docs/ci/windows.md\">docs</a>."}));
     f.append(fsTool);
   }
 
@@ -1083,6 +1106,9 @@ function runSelfTest(){
   scn("username on argv, password by env", ()=>{state.sast.user="admin";}, [{d:"--sast-user admin",c:has("--sast-user admin")},{d:"no CXSAST_USERNAME env",c:(o)=>!o.includes("CXSAST_USERNAME")},{d:"password still env",c:has("CXSAST_PASSWORD")}]);
   scn("literal server+username on argv", ()=>{state.sast.server="http://cx.local";state.sast.user="svc";}, [{d:"--sast-server",c:has("--sast-server http://cx.local")},{d:"--sast-user svc",c:has("--sast-user svc")}]);
   scn("oauth incomplete → flagged", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"INCOMPLETE banner",c:has("INCOMPLETE")},{d:"lists missing base-uri",c:(o,n)=>n.includes("--cx-base-uri")&&n.includes("--cx-tenant")}]);
+  scn("native missing paths → flagged", ()=>{state.runtime="native";state.tools={scaResolver:"",sastPath:"",kicsQueries:""};}, [{d:"INCOMPLETE",c:has("INCOMPLETE")},{d:"names --sast-path",c:(o,n)=>n.includes("--sast-path")},{d:"names --sca-resolver",c:(o,n)=>n.includes("--sca-resolver")},{d:"names --kics-queries",c:(o,n)=>n.includes("--kics-queries")}]);
+  scn("native paths provided → ok", ()=>{state.runtime="native";state.tools={scaResolver:"/o/sca/ScaResolver",sastPath:"/o/cxconsole",kicsQueries:"/o/kics/queries"};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")},{d:"--sast-path emitted",c:has("--sast-path /o/cxconsole")},{d:"--kics-queries emitted",c:has("--kics-queries /o/kics/queries")}]);
+  scn("docker runtime → native paths NOT required", ()=>{state.runtime="docker";state.tools={scaResolver:"",sastPath:"",kicsQueries:""};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")}]);
   scn("oauth complete → no flag", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"https://a",baseAuthUri:"https://b",tenant:"t"};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")},{d:"--cx-client-id id",c:has("--cx-client-id id")}]);
   scn("oauth incomplete but no Cx1 engine → OK", ()=>{state.auth="client-creds";state.scanners={sast:true,sca:false,kics:true,secrets:true,containers:false};state.authEnv={apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"no INCOMPLETE (no sca/containers)",c:(o)=>!o.includes("INCOMPLETE")}]);
   scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);

@@ -159,6 +159,9 @@ func Resolve(f Flags, env EnvFunc, ciCtx ci.Context) (*RunConfig, error) {
 			f.Path["sast"] = v
 		}
 	}
+	if f.KicsQueries == "" {
+		f.KicsQueries = env("CXOO_KICS_QUERIES_PATH")
+	}
 
 	// Source: flag > CI workspace > ".".
 	rc.Source = firstNonEmpty(f.Source, ciCtx.Workspace, ".")
@@ -276,6 +279,8 @@ func buildEngineConfigs(rc *RunConfig, f Flags) map[model.Engine]*scanner.Config
 		case model.EngineSCA:
 			cfg.ResolverArgs = f.ScaResolverArgs
 			cfg.Extra["scaResolverPath"] = f.ScaResolverPath
+		case model.EngineIaC:
+			cfg.Extra["kicsQueries"] = f.KicsQueries
 		case model.EngineContainers:
 			cfg.Extra["containerImages"] = f.ContainerImages
 		}

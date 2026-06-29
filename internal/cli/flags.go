@@ -91,6 +91,7 @@ func registerRunFlags(cmd *cobra.Command) *boundFlags {
 	fs.StringVar(&b.f.ScaResolverPath, "sca-resolver", "", "Path to the ScaResolver executable (enables SCA Resolver mode)")
 	fs.StringArrayVar(&b.f.ScaResolverArgs, "sca-resolver-arg", nil, "Raw arg appended to --sca-resolver-params (repeatable, =-bound)")
 	fs.StringVar(&b.f.ContainerImages, "container-images", "", "Comma-separated images for the containers scan")
+	fs.StringVar(&b.f.KicsQueries, "kics-queries", "", "Path to the KICS query assets (native mode; else $CXOO_KICS_QUERIES_PATH)")
 
 	// Per-engine mode/path/image/arg.
 	for _, tok := range engineTokens {

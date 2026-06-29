@@ -111,6 +111,7 @@ For each engine token `E ∈ {sast, sca, kics, secrets, containers}`:
 | `--E-image <ref>` | docker image (digest-pinned via `manifest.lock` by default) |
 | `--sca-resolver <path>` | ScaResolver executable. **SCA always runs in Resolver mode** — required (or `CXOO_SCA_RESOLVER` in the fat image), else SCA fails with exit 31. |
 | `--sca-resolver-arg=<tok>` | raw arg forwarded to the **ScaResolver** binary via `cx --sca-resolver-params` (repeatable, `=`-bound). Distinct from `--sca-arg`, which targets the **cx** command. See [sca-resolver.md](sca-resolver.md). |
+| `--kics-queries <path>` | KICS query-assets directory for **native** mode (or `CXOO_KICS_QUERIES_PATH`; set in the fat image). Without it, native KICS has no queries to run. |
 | `--container-images <csv>` | images for the containers scan |
 
 ## Tier B — raw passthrough

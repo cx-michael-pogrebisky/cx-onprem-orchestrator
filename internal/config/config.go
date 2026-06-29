@@ -95,6 +95,7 @@ type Flags struct {
 	ScaResolverPath string
 	ScaResolverArgs []string
 	ContainerImages string
+	KicsQueries     string // KICS query-assets path (native mode); else $CXOO_KICS_QUERIES_PATH
 }
 
 // RunConfig is the validated, resolved configuration for one run.

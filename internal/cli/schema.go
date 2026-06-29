@@ -135,6 +135,9 @@ func classifyFlag(name string) (group, engine string) {
 		if name == tok+"-report-formats" {
 			return "output", tok
 		}
+		if name == tok+"-queries" {
+			return "tool", tok
+		}
 		if name == tok+"-timeout" {
 			return "orchestration", tok
 		}

@@ -104,9 +104,13 @@ func (s *Scanner) BuildInvocation(cfg *scanner.Config, _ threshold.Plan) (*model
 		inv.Path = bin
 		args := append([]string{}, scanArgs...)
 		args = append(args, "-p", cfg.Source, "-o", cfg.OutputDir)
-		// In native mode kics needs its query assets; the fat image exports their
-		// location via CXOO_KICS_QUERIES_PATH.
-		if q := os.Getenv("CXOO_KICS_QUERIES_PATH"); q != "" {
+		// In native mode kics needs its query assets: prefer --kics-queries
+		// (cfg.Extra["kicsQueries"]), else $CXOO_KICS_QUERIES_PATH (set by the fat image).
+		q := cfg.Extra["kicsQueries"]
+		if q == "" {
+			q = os.Getenv("CXOO_KICS_QUERIES_PATH")
+		}
+		if q != "" {
 			args = append(args, "-q", q)
 		}
 		args = append(args, cfg.RawArgs...)

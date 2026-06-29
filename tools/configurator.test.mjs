@@ -325,3 +325,43 @@ test("incomplete OAuth without a Cx1 engine is fine (auth unused)", () => {
   Object.assign(c.__state.authEnv, { clientId: "", clientSecretEnv: "", baseUri: "", baseAuthUri: "", tenant: "" });
   assert.ok(!out(c).includes("INCOMPLETE"), "no Cx1 engine selected → OAuth completeness irrelevant");
 });
+
+test("native runtime flags each missing resource path by name", () => {
+  const c = fresh();
+  c.__state.runtime = "native";
+  c.__state.tools = { scaResolver: "", sastPath: "", kicsQueries: "" };
+  const o = out(c), n = notes(c);
+  assert.match(o, /INCOMPLETE CONFIGURATION/);
+  assert.ok(n.includes("--sast-path"), "names --sast-path");
+  assert.ok(n.includes("--sca-resolver"), "names --sca-resolver");
+  assert.ok(n.includes("--kics-queries"), "names --kics-queries");
+});
+
+test("native runtime with all paths set is complete and emits them", () => {
+  const c = fresh();
+  c.__state.runtime = "native";
+  c.__state.tools = { scaResolver: "/o/sca/ScaResolver", sastPath: "/o/cxconsole", kicsQueries: "/o/kics/queries" };
+  const o = out(c);
+  assert.ok(!o.includes("INCOMPLETE"), "all native paths set → complete");
+  assert.match(o, /--sca-resolver \/o\/sca\/ScaResolver/);
+  assert.match(o, /--sast-path \/o\/cxconsole/);
+  assert.match(o, /--kics-queries \/o\/kics\/queries/);
+});
+
+test("native check only flags engines that are selected", () => {
+  const c = fresh();
+  c.__state.runtime = "native";
+  c.__state.scanners = { sast: false, sca: false, kics: true, secrets: true, containers: false };
+  c.__state.tools = { scaResolver: "", sastPath: "", kicsQueries: "" };
+  const n = notes(c);
+  assert.ok(n.includes("--kics-queries"), "kics selected → flagged");
+  assert.ok(!n.includes("--sast-path"), "sast not selected → not flagged");
+  assert.ok(!n.includes("--sca-resolver"), "sca not selected → not flagged");
+});
+
+test("docker/podman runtime does NOT require native resource paths (fat image)", () => {
+  for (const rt of ["docker", "podman"]) {
+    const c = fresh(); c.__state.runtime = rt; c.__state.tools = { scaResolver: "", sastPath: "", kicsQueries: "" };
+    assert.ok(!out(c).includes("INCOMPLETE"), `${rt}: fat image provides the tools`);
+  }
+});
