@@ -359,6 +359,48 @@ test("native check only flags engines that are selected", () => {
   assert.ok(!n.includes("--sca-resolver"), "sca not selected → not flagged");
 });
 
+test("each CI wires its native branch variable when the branch field is blank", () => {
+  const expect = {
+    github: '--branch "$GITHUB_REF_NAME"', gitlab: '--branch "$CI_COMMIT_REF_NAME"',
+    azure: '--branch "$(Build.SourceBranchName)"', jenkins: '--branch "${BRANCH_NAME:-${GIT_BRANCH#origin/}}"',
+    bamboo: '--branch "$bamboo_planRepository_branchName"', bitbucket: '--branch "$BITBUCKET_BRANCH"',
+    teamcity: '--branch "%teamcity.build.branch%"', buildkite: '--branch "$BUILDKITE_BRANCH"',
+    circleci: '--branch "$CIRCLE_BRANCH"', travis: '--branch "$TRAVIS_BRANCH"', drone: '--branch "$DRONE_BRANCH"',
+    semaphore: '--branch "$SEMAPHORE_GIT_BRANCH"', appveyor: '--branch "$APPVEYOR_REPO_BRANCH"', codefresh: '--branch "${{CF_BRANCH}}"',
+  };
+  for (const [t, want] of Object.entries(expect)) {
+    const c = fresh(); c.__state.target = t; c.__state.branch = "";
+    assert.ok(out(c).includes(want), `${t}: expected ${want}`);
+  }
+});
+
+test("an explicit branch value overrides the CI native variable", () => {
+  const c = fresh(); c.__state.target = "jenkins"; c.__state.branch = "release/1.2";
+  const o = out(c);
+  assert.match(o, /--branch release\/1\.2/);
+  assert.ok(!o.includes("GIT_BRANCH"), "literal branch used, not the env expression");
+});
+
+test("Jenkins pipeline checks out the repo (source + GIT_BRANCH)", () => {
+  const c = fresh(); c.__state.target = "jenkins";
+  assert.match(out(c), /checkout scm/);
+});
+
+test("CodeBuild has no clean branch var, so it relies on auto-detection (no --branch)", () => {
+  const c = fresh(); c.__state.target = "codebuild"; c.__state.branch = "";
+  assert.ok(!out(c).includes("--branch"), "codebuild leaves branch to auto-detect");
+});
+
+test("local target does not inject a branch variable (git auto-detect)", () => {
+  const c = fresh(); c.__state.target = "local"; c.__state.branch = "";
+  assert.ok(!out(c).includes("--branch"), "local relies on git");
+});
+
+test("Windows CI keeps auto-detection (no bash branch expression injected)", () => {
+  const c = fresh(); c.__state.target = "github"; c.__state.os = "windows"; c.__state.runtime = "native"; c.__state.branch = "";
+  assert.ok(!out(c).includes("$GITHUB_REF_NAME"), "no bash var in a pwsh command");
+});
+
 test("docker/podman runtime does NOT require native resource paths (fat image)", () => {
   for (const rt of ["docker", "podman"]) {
     const c = fresh(); c.__state.runtime = rt; c.__state.tools = { scaResolver: "", sastPath: "", kicsQueries: "" };

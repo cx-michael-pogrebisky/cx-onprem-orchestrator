@@ -144,49 +144,49 @@ const OSES = [
 const IMG = "ghcr.io/cx-michael-pogrebisky/cx-onprem-orchestrator:fat";
 const TARGETS = {
   local:     { label:"Local invocation", family:"local" },
-  github:    { label:"GitHub Actions",   family:"ci", file:".github/workflows/checkmarx.yml", lang:"yaml",
+  github:    { branchVar:"$GITHUB_REF_NAME", label:"GitHub Actions",   family:"ci", file:".github/workflows/checkmarx.yml", lang:"yaml",
                winHosted:true, winLabel:"windows-latest", winShell:"pwsh",
                note:"Hosted Ubuntu runners ship Podman; the job-level container: is Docker/Moby and can't be swapped on hosted runners." },
-  gitlab:    { label:"GitLab CI", family:"ci", file:".gitlab-ci.yml", lang:"yaml",
+  gitlab:    { branchVar:"$CI_COMMIT_REF_NAME", label:"GitLab CI", family:"ci", file:".gitlab-ci.yml", lang:"yaml",
                winHosted:true, winLabel:"saas-windows-medium-amd64", winShell:"powershell",
                note:"Shared runners' image: is Docker-backed; choose the runtime with a self-hosted runner." },
-  azure:     { label:"Azure DevOps", family:"ci", file:"azure-pipelines.yml", lang:"yaml",
+  azure:     { branchVar:"$(Build.SourceBranchName)", label:"Azure DevOps", family:"ci", file:"azure-pipelines.yml", lang:"yaml",
                winHosted:true, winLabel:"windows-latest", winShell:"pwsh",
                note:"Microsoft-hosted container jobs are Docker-backed; for Podman use a script step or self-hosted agent." },
-  jenkins:   { label:"Jenkins", family:"jenkins", file:"Jenkinsfile", lang:"groovy",
+  jenkins:   { branchVar:"${BRANCH_NAME:-${GIT_BRANCH#origin/}}", label:"Jenkins", family:"jenkins", file:"Jenkinsfile", lang:"groovy",
                winHosted:false, winLabel:"windows", winShell:"bat",
                note:"No hosted runners — you own the agents, so install Podman or Docker as you prefer." },
-  bamboo:    { label:"Bamboo", family:"ci-script", file:"(Bamboo Script task)", lang:"bash",
+  bamboo:    { branchVar:"$bamboo_planRepository_branchName", label:"Bamboo", family:"ci-script", file:"(Bamboo Script task)", lang:"bash",
                winHosted:false, winLabel:"a Windows remote agent", winShell:"bat",
                note:"Self-hosted remote agents only; pick the runtime you install." },
-  bitbucket: { label:"Bitbucket Pipelines", family:"ci", file:"bitbucket-pipelines.yml", lang:"yaml",
+  bitbucket: { branchVar:"$BITBUCKET_BRANCH", label:"Bitbucket Pipelines", family:"ci", file:"bitbucket-pipelines.yml", lang:"yaml",
                winHosted:false, winLabel:"a self-hosted Windows runner", winShell:"powershell", linuxOnlyCloud:true,
                note:"Cloud Pipelines are Linux/Docker only and can't use Podman; for Podman or Windows use a self-hosted runner." },
-  teamcity:  { label:"TeamCity", family:"ci-script", file:"(TeamCity Command Line step)", lang:"bash",
+  teamcity:  { branchVar:"%teamcity.build.branch%", label:"TeamCity", family:"ci-script", file:"(TeamCity Command Line step)", lang:"bash",
                winHosted:true, winLabel:"a Windows agent", winShell:"powershell",
                note:"On self-hosted agents you choose the runtime." },
-  buildkite: { label:"Buildkite", family:"ci", file:".buildkite/pipeline.yml", lang:"yaml",
+  buildkite: { branchVar:"$BUILDKITE_BRANCH", label:"Buildkite", family:"ci", file:".buildkite/pipeline.yml", lang:"yaml",
                winHosted:false, winLabel:"a self-hosted Windows agent", winShell:"powershell",
                note:"Hosted agents are Linux+macOS only; Windows via self-hosted agents." },
   codebuild: { label:"AWS CodeBuild", family:"ci", file:"buildspec.yml", lang:"yaml",
                winHosted:true, winLabel:"WINDOWS_SERVER_2022_CONTAINER", winShell:"powershell", winIsContainer:true,
                note:"CodeBuild Windows environments are WINDOWS containers and cannot run the linux/amd64 image — use the native binary there." },
-  circleci:  { label:"CircleCI", family:"ci", file:".circleci/config.yml", lang:"yaml",
+  circleci:  { branchVar:"$CIRCLE_BRANCH", label:"CircleCI", family:"ci", file:".circleci/config.yml", lang:"yaml",
                winHosted:true, winLabel:"win/server-2022", winShell:"powershell",
                note:"The hosted Windows VM executor is fixed; for Podman use a self-hosted runner." },
-  travis:    { label:"Travis CI", family:"ci", file:".travis.yml", lang:"yaml",
+  travis:    { branchVar:"$TRAVIS_BRANCH", label:"Travis CI", family:"ci", file:".travis.yml", lang:"yaml",
                winHosted:true, winLabel:"os: windows", winShell:"powershell",
                note:"On Linux workers, services: [docker]; install Podman to use it instead." },
-  drone:     { label:"Drone CI", family:"ci", file:".drone.yml", lang:"yaml",
+  drone:     { branchVar:"$DRONE_BRANCH", label:"Drone CI", family:"ci", file:".drone.yml", lang:"yaml",
                winHosted:false, winLabel:"platform os: windows", winShell:"powershell",
                note:"Windows is self-hosted only (not on Drone Cloud)." },
-  semaphore: { label:"Semaphore", family:"ci", file:".semaphore/semaphore.yml", lang:"yaml",
+  semaphore: { branchVar:"$SEMAPHORE_GIT_BRANCH", label:"Semaphore", family:"ci", file:".semaphore/semaphore.yml", lang:"yaml",
                winHosted:false, winLabel:"a self-hosted Windows agent", winShell:"powershell", linuxOnlyCloud:true,
                note:"Cloud is Linux/macOS only; Windows via a self-hosted agent." },
-  appveyor:  { label:"AppVeyor", family:"ci", file:"appveyor.yml", lang:"yaml",
+  appveyor:  { branchVar:"$APPVEYOR_REPO_BRANCH", label:"AppVeyor", family:"ci", file:"appveyor.yml", lang:"yaml",
                winHosted:true, winLabel:"Visual Studio 2022", winShell:"cmd", winFirst:true,
                note:"AppVeyor is Windows-first; the fat image needs a Linux image (image: Ubuntu)." },
-  codefresh: { label:"Codefresh", family:"ci", file:"codefresh.yml", lang:"yaml",
+  codefresh: { branchVar:"${{CF_BRANCH}}", label:"Codefresh", family:"ci", file:"codefresh.yml", lang:"yaml",
                winHosted:false, winLabel:"a Windows runtime (gated)", winShell:"powershell", linuxOnlyCloud:true,
                note:"Standard runtime is Linux/Docker; Windows is gated/incubation." },
 };
@@ -237,6 +237,17 @@ function qBash(v){ if(!needsQuote(v))return v; return '"'+v.replace(/(["\\$`])/g
 function qPwsh(v){ if(!needsQuote(v))return v; return '"'+v.replace(/"/g,'""')+'"'; }
 function qYaml(v){ return v; } // values live inside block scalars; no quoting needed
 
+/* Render one {flag,value} pair into a token. branchExpr values are CI/shell
+   variable expressions (e.g. "$CI_COMMIT_REF_NAME") that must expand at run time,
+   so they are wrapped in double quotes WITHOUT escaping the $ — used for the
+   per-CI branch fallback. q is the per-mode quoter for normal values. */
+function argTok(p, q){
+  if(p.value===null) return p.flag;
+  if(p.branchExpr) return p.flag+' "'+p.value+'"';
+  if(p.raw) return p.flag+"="+q(p.value);
+  return p.flag+" "+q(p.value);
+}
+
 /* Build the engine/threshold argument pairs (binary-agnostic). */
 function selectedEngines(){ return SCHEMA.engines.filter(e=>state.scanners[e]); }
 function thresholdString(){
@@ -253,7 +264,13 @@ function buildArgPairs(){
   if(state.projectName) a.push({flag:"--project-name", value:state.projectName});
   if(state.scanners.sast && state.sastProjectName) a.push({flag:"--sast-project-name", value:state.sastProjectName});
   if((state.scanners.sca||state.scanners.containers) && state.cxProjectName) a.push({flag:"--cx-project-name", value:state.cxProjectName});
+  // Branch: explicit value if given; else for a CI target wire the CI's native
+  // branch variable so the build's branch is fed correctly (the orchestrator's
+  // auto-detection is unreliable on some CIs, notably Jenkins). Windows CI agents
+  // keep auto-detection (the var syntax differs); local relies on git.
   if(state.branch) a.push({flag:"--branch", value:state.branch});
+  else if(state.target!=="local" && state.os!=="windows" && TARGETS[state.target] && TARGETS[state.target].branchVar)
+    a.push({flag:"--branch", value:TARGETS[state.target].branchVar, branchExpr:true});
   // filters
   for(const name in state.filters){ const v=state.filters[name]; if(!v) continue;
     if(name==="use-gitignore"){ if(v) a.push({flag:"--use-gitignore", value:null}); } else a.push({flag:"--"+name, value:v}); }
@@ -323,9 +340,7 @@ function renderArgs(pairs, mode, indent){
   const q = mode==="pwsh"?qPwsh : mode==="yaml"?qYaml : qBash;
   const cont = mode==="pwsh" ? " `" : mode==="yaml" ? "" : " \\";
   const pad = " ".repeat(indent||0);
-  const toks = pairs.map(p=> p.value===null ? p.flag
-    : p.raw ? p.flag+"="+q(p.value)          // --engine-arg=value  (=-bound passthrough)
-    : p.flag+" "+q(p.value));
+  const toks = pairs.map(p=> argTok(p, q));
   if(mode==="yaml"){ // join, wrapped, inside a block scalar — backslash continuations are fine in shell within | block
     return toks.map((t,i)=> pad + t + (i<toks.length-1? " \\":"")).join("\n");
   }
@@ -501,7 +516,7 @@ ciContainerScript(pairs, rt==="native"?"docker":rt, 4),
 `    environment:`,
 envNames().map(n=>`      ${n}: { from_secret: ${n.toLowerCase()} }`).join("\n"),
 `    commands:`,
-`      - cx-onprem-orchestrator run ${pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qBash(p.value):p.flag+" "+qBash(p.value))).join(" ")}`,
+`      - cx-onprem-orchestrator run ${pairs.map(p=>argTok(p,qBash)).join(" ")}`,
     ].join("\n");
     case "semaphore": return [
 `version: v1.0`,
@@ -532,7 +547,7 @@ ciContainerScript(pairs, rt==="native"?"docker":rt, 6),
 `  checkmarx:`,
 `    image: ${IMG}`,
 `    commands:`,
-`      - cx-onprem-orchestrator run ${pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qBash(p.value):p.flag+" "+qBash(p.value))).join(" ")}`,
+`      - cx-onprem-orchestrator run ${pairs.map(p=>argTok(p,qBash)).join(" ")}`,
 `    environment:`,
 envNames().map(n=>`      - ${n}=\${{${n}}}`).join("\n"),
     ].join("\n");
@@ -653,7 +668,7 @@ nativeWinScript(pairs,"powershell",6),
 `steps:`,
 `  - name: scan`,
 `    commands:`,
-`      - ${BIN_WIN} run ${pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qPwsh(p.value):p.flag+" "+qPwsh(p.value))).join(" ")}`,
+`      - ${BIN_WIN} run ${pairs.map(p=>argTok(p,qPwsh)).join(" ")}`,
     ].join("\n");
     case "bitbucket": return [
 `# Bitbucket: Windows needs a SELF-HOSTED runner (cloud is Linux only).`,
@@ -700,6 +715,7 @@ envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}'
 `  stages {`,
 `    stage('Checkmarx') {`,
 `      steps {`,
+`        checkout scm`,
 `        bat '${oneLine.replace(/\\/g,"\\\\")}'`,
 `      }`,
 `    }`,
@@ -723,8 +739,9 @@ envNames().map(n=>`    ${n} = credentials('${n.toLowerCase().replace(/_/g,"-")}'
 `  stages {`,
 `    stage('Checkmarx') {`,
 `      steps {`,
+`        checkout scm`,
 `        sh '''`,
-"cx-onprem-orchestrator run "+pairs.map(p=>p.value===null?p.flag:(p.raw?p.flag+"="+qBash(p.value):p.flag+" "+qBash(p.value))).join(" "),
+"cx-onprem-orchestrator run "+pairs.map(p=>argTok(p,qBash)).join(" "),
 `'''`,
 `      }`,
 `    }`,
@@ -1111,6 +1128,9 @@ function runSelfTest(){
   scn("docker runtime → native paths NOT required", ()=>{state.runtime="docker";state.tools={scaResolver:"",sastPath:"",kicsQueries:""};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")}]);
   scn("oauth complete → no flag", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"https://a",baseAuthUri:"https://b",tenant:"t"};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")},{d:"--cx-client-id id",c:has("--cx-client-id id")}]);
   scn("oauth incomplete but no Cx1 engine → OK", ()=>{state.auth="client-creds";state.scanners={sast:true,sca:false,kics:true,secrets:true,containers:false};state.authEnv={apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"no INCOMPLETE (no sca/containers)",c:(o)=>!o.includes("INCOMPLETE")}]);
+  scn("jenkins wires branch + checkout", ()=>{state.target="jenkins";state.branch="";}, [{d:"native branch var",c:has('--branch "${BRANCH_NAME:-${GIT_BRANCH#origin/}}"')},{d:"checkout scm",c:has("checkout scm")}]);
+  scn("gitlab wires native branch", ()=>{state.target="gitlab";state.branch="";}, [{d:"$CI_COMMIT_REF_NAME",c:has('--branch "$CI_COMMIT_REF_NAME"')}]);
+  scn("typed branch overrides", ()=>{state.target="github";state.branch="dev";}, [{d:"literal branch",c:has("--branch dev")},{d:"no env var",c:(o)=>!o.includes("GITHUB_REF_NAME")}]);
   scn("no secret values", ()=>{state.target="gitlab";}, [{d:"no jwt/pw values",c:(o)=>!/eyJ|REDACTED/.test(o)}]);
   reset(); render();
 
