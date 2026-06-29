@@ -4,17 +4,47 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>cx-onprem-orchestrator — configuration builder</title>
+<script>
+  // Set the theme before first paint to avoid a flash. "system" follows the
+  // OS/browser (prefers-color-scheme); "light"/"dark" force it.
+  try { document.documentElement.setAttribute("data-theme", localStorage.getItem("cxoo-theme") || "system"); }
+  catch (e) { document.documentElement.setAttribute("data-theme", "system"); }
+</script>
 <style>
+  /* Dark palette (default). */
   :root {
     --bg:#0e1116; --panel:#161b22; --panel2:#1c2230; --line:#2b3340; --fg:#e6edf3;
     --muted:#9aa7b4; --accent:#4c8eff; --accent2:#3fb950; --warn:#d29922; --code:#0a0d12;
+    --chip-on-fg:#cfe0ff; --warn-fg:#f0d488; --ok-fg:#a5e0ad; --info-fg:#bcd4ff; --err-fg:#ffb3ad;
+    color-scheme: dark;
+  }
+  /* Light palette: applied when the user picks Light, or picks System and the
+     OS/browser prefers light. */
+  :root[data-theme="light"],
+  :root[data-theme="system"] { color-scheme: light dark; }
+  @media (prefers-color-scheme: light) {
+    :root[data-theme="system"] {
+      --bg:#ffffff; --panel:#f6f8fa; --panel2:#eaeef2; --line:#d0d7de; --fg:#1f2328;
+      --muted:#57606a; --accent:#0969da; --accent2:#1a7f37; --warn:#9a6700; --code:#eff2f5;
+      --chip-on-fg:#0969da; --warn-fg:#7a5c00; --ok-fg:#1a7f37; --info-fg:#0a52c2; --err-fg:#b62324;
+      color-scheme: light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:#ffffff; --panel:#f6f8fa; --panel2:#eaeef2; --line:#d0d7de; --fg:#1f2328;
+    --muted:#57606a; --accent:#0969da; --accent2:#1a7f37; --warn:#9a6700; --code:#eff2f5;
+    --chip-on-fg:#0969da; --warn-fg:#7a5c00; --ok-fg:#1a7f37; --info-fg:#0a52c2; --err-fg:#b62324;
+    color-scheme: light;
   }
   * { box-sizing:border-box; }
   body { margin:0; font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
          background:var(--bg); color:var(--fg); }
-  header { padding:16px 20px; border-bottom:1px solid var(--line); background:var(--panel); }
-  header h1 { margin:0; font-size:18px; }
-  header .sub { color:var(--muted); font-size:12.5px; margin-top:3px; }
+  header { padding:16px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:relative; }
+  header h1 { margin:0; font-size:18px; padding-right:160px; }
+  header .sub { color:var(--muted); font-size:12.5px; margin-top:3px; padding-right:160px; }
+  .theme-pick { position:absolute; right:20px; top:14px; display:flex; gap:6px; align-items:center; }
+  .theme-pick label { margin:0; color:var(--muted); font-size:12px; }
+  .theme-pick select { width:auto; padding:5px 8px; }
   .wrap { display:grid; grid-template-columns: minmax(360px,1fr) minmax(420px,1.1fr); gap:0; min-height:calc(100vh - 70px); }
   .form { padding:18px 20px; overflow:auto; border-right:1px solid var(--line); }
   .out  { padding:18px 20px; background:var(--panel); position:sticky; top:0; align-self:start; height:calc(100vh - 70px); overflow:auto; }
@@ -32,7 +62,7 @@
   .chip { display:inline-flex; align-items:center; gap:6px; background:var(--code); border:1px solid var(--line);
           border-radius:999px; padding:5px 10px; cursor:pointer; user-select:none; font-size:12.5px; }
   .chip input { accent-color:var(--accent); }
-  .chip.on { border-color:var(--accent); color:#cfe0ff; }
+  .chip.on { border-color:var(--accent); color:var(--chip-on-fg); }
   .chip input:disabled + span, .chip input:disabled { opacity:.7; }
   .fmt-group { margin:8px 0 10px; }
   .fmt-eng { font-size:12px; color:var(--fg); margin-bottom:4px; font-weight:600; }
@@ -54,13 +84,13 @@
   .toolbar button { background:var(--accent); border:none; color:#fff; border-radius:6px; padding:8px 12px; cursor:pointer; font-weight:600; }
   .toolbar button.ghost { background:var(--code); border:1px solid var(--line); color:var(--fg); font-weight:400; }
   .notes { margin-top:12px; }
-  .note { background:rgba(210,153,34,.08); border:1px solid rgba(210,153,34,.4); color:#f0d488;
+  .note { background:rgba(210,153,34,.12); border:1px solid rgba(210,153,34,.45); color:var(--warn-fg);
           border-radius:6px; padding:8px 10px; font-size:12px; margin-top:8px; }
-  .note.ok { background:rgba(63,185,80,.08); border-color:rgba(63,185,80,.4); color:#a5e0ad; }
-  .note.info { background:rgba(76,142,255,.08); border-color:rgba(76,142,255,.4); color:#bcd4ff; }
-  .note.err { background:rgba(248,81,73,.12); border-color:rgba(248,81,73,.65); color:#ffb3ad; font-weight:600; }
+  .note.ok { background:rgba(63,185,80,.12); border-color:rgba(63,185,80,.45); color:var(--ok-fg); }
+  .note.info { background:rgba(76,142,255,.12); border-color:rgba(76,142,255,.45); color:var(--info-fg); }
+  .note.err { background:rgba(248,81,73,.14); border-color:rgba(248,81,73,.65); color:var(--err-fg); font-weight:600; }
   .out.incomplete pre { border-color:#f85149; box-shadow:0 0 0 1px #f85149 inset; }
-  #outHead.bad { color:#ff8a82; }
+  #outHead.bad { color:var(--err-fg); }
   input.bad-input { border-color:#f85149; outline:1px solid #f85149; background:rgba(248,81,73,.06); }
   a { color:var(--accent); }
   code { background:var(--code); padding:1px 5px; border-radius:4px; font-family:ui-monospace,monospace; font-size:12px; }
@@ -69,8 +99,16 @@
 </head>
 <body>
 <header>
+  <div class="theme-pick">
+    <label for="theme">Theme</label>
+    <select id="theme" title="Theme — System follows your OS/browser">
+      <option value="system">System</option>
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+    </select>
+  </div>
   <h1>cx-onprem-orchestrator — configuration builder</h1>
-  <div class="sub">Pick a target, OS, runtime, and options — get a ready-to-paste config. Runs entirely in your browser; secrets are referenced by name only, never entered here. <span id="schemaVer"></span></div>
+  <div class="sub">Pick a target, OS, runtime, and options — get a ready-to-paste config. Runs entirely in your browser; real secrets are referenced by env-var name only, never entered here. <span id="schemaVer"></span></div>
 </header>
 
 <div class="wrap">
@@ -809,6 +847,15 @@ function buildForm(){
   fsEng.append(chips);
   f.append(fsEng);
 
+  // CxSAST connection — literal non-secret values (server URL + username).
+  if(state.scanners.sast){
+    const fsConn=el("fieldset",{}, el("legend",{},"CxSAST connection — non-secret values"));
+    fsConn.append(field("CxSAST server URL (--sast-server)","sast.server","e.g. http://cxsast.internal — or blank to use $CXSAST_URL"));
+    fsConn.append(field("CxSAST username (--sast-user)","sast.user","e.g. svc-checkmarx — or blank to use $CXSAST_USERNAME"));
+    fsConn.append(el("div",{class:"hint",html:"These are <b>not secrets</b> — type the literal values here (they go on the command line), or leave blank to read <code>$CXSAST_URL</code> / <code>$CXSAST_USERNAME</code> from the environment. The CxSAST <b>password</b> stays a secret (set its env-var name under <i>Authentication</i>)."}));
+    f.append(fsConn);
+  }
+
   // Context
   const fsCtx=el("fieldset",{}, el("legend",{},"Context (optional — CI auto-detects)"));
   fsCtx.append(field("Source path (--source)","source","e.g. . or $CI_WORKSPACE"));
@@ -902,9 +949,7 @@ function buildForm(){
     fsAuth.append(field("Auth URI (--cx-base-auth-uri)","authEnv.baseAuthUri","required, e.g. https://<region>.iam.checkmarx.net","cc_baseAuthUri"));
     fsAuth.append(field("Tenant (--cx-tenant)","authEnv.tenant","required","cc_tenant")); }
   if(state.scanners.sast){
-    fsAuth.append(el("div",{class:"hint",html:"<b>CxSAST</b> (native on-prem) — team is set in <i>Project &amp; team</i> above:"}));
-    fsAuth.append(field("CxSAST server (--sast-server)","sast.server","default $CXSAST_URL"));
-    fsAuth.append(field("CxSAST username (--sast-user)","sast.user","direct value; blank = read from the env var below"));
+    fsAuth.append(el("div",{class:"hint",html:"<b>CxSAST</b> secret — set the password env-var name (server &amp; username are in <i>CxSAST connection</i> above):"}));
     fsAuth.append(field("CxSAST password env-var name (--sast-password-env)","sast.passEnv","secret — referenced by name, never a value"));
     if(state.runtime==="native") fsAuth.append(field("Java (--sast-java)","sast.java","path to java(.exe) or JAVA_HOME"));
   }
@@ -992,6 +1037,19 @@ function setCopy(m){ const s=document.getElementById("copyState"); s.textContent
 
 document.getElementById("schemaVer").textContent = "Flags: "+SCHEMA.flags.length+" · engines: "+SCHEMA.engines.join("/");
 
+/* Theme picker: Light / Dark / System (System follows the OS/browser and adapts
+   live). Persisted in localStorage. Guarded so the headless test harness is happy. */
+(function(){
+  const KEY="cxoo-theme";
+  function saved(){ try{ return localStorage.getItem(KEY); }catch(e){ return null; } }
+  function apply(t){
+    try{ if(document.documentElement) document.documentElement.setAttribute("data-theme", t); }catch(e){}
+    try{ localStorage.setItem(KEY, t); }catch(e){}
+  }
+  const sel=document.getElementById("theme");
+  if(sel){ sel.value=saved()||"system"; apply(sel.value); sel.onchange=()=>apply(sel.value); }
+})();
+
 /* In-browser self-test — open the page with #selftest to run it in YOUR browser.
    Drives representative configs through the real render path and shows a PASS/FAIL
    banner. Used by the headless cross-browser tests (Chrome/Edge, Firefox) and
@@ -1023,6 +1081,7 @@ function runSelfTest(){
   scn("per-scanner formats: SCA json-only", ()=>{state.engineFormats.sca={json:true};}, [{d:"--sca-report-formats json",c:has("--sca-report-formats json")},{d:"no global --report-formats",c:(o)=>!o.includes("--report-formats ")}]);
   scn("per-scanner formats: SAST adds pdf", ()=>{state.engineFormats.sast={xml:true,pdf:true};}, [{d:"--sast-report-formats",c:(o)=>/--sast-report-formats (xml,pdf|pdf,xml)/.test(o)}]);
   scn("username on argv, password by env", ()=>{state.sast.user="admin";}, [{d:"--sast-user admin",c:has("--sast-user admin")},{d:"no CXSAST_USERNAME env",c:(o)=>!o.includes("CXSAST_USERNAME")},{d:"password still env",c:has("CXSAST_PASSWORD")}]);
+  scn("literal server+username on argv", ()=>{state.sast.server="http://cx.local";state.sast.user="svc";}, [{d:"--sast-server",c:has("--sast-server http://cx.local")},{d:"--sast-user svc",c:has("--sast-user svc")}]);
   scn("oauth incomplete → flagged", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"INCOMPLETE banner",c:has("INCOMPLETE")},{d:"lists missing base-uri",c:(o,n)=>n.includes("--cx-base-uri")&&n.includes("--cx-tenant")}]);
   scn("oauth complete → no flag", ()=>{state.auth="client-creds";state.authEnv={apikey:"CX1_APIKEY",clientId:"id",clientSecretEnv:"CX_CLIENT_SECRET",baseUri:"https://a",baseAuthUri:"https://b",tenant:"t"};}, [{d:"no INCOMPLETE",c:(o)=>!o.includes("INCOMPLETE")},{d:"--cx-client-id id",c:has("--cx-client-id id")}]);
   scn("oauth incomplete but no Cx1 engine → OK", ()=>{state.auth="client-creds";state.scanners={sast:true,sca:false,kics:true,secrets:true,containers:false};state.authEnv={apikey:"CX1_APIKEY",clientId:"",clientSecretEnv:"",baseUri:"",baseAuthUri:"",tenant:""};}, [{d:"no INCOMPLETE (no sca/containers)",c:(o)=>!o.includes("INCOMPLETE")}]);

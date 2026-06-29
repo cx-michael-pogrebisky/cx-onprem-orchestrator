@@ -41,10 +41,12 @@ function load() {
   byId["cxoo-schema"] = makeEl(); byId["cxoo-schema"].textContent = jsonM[1];
 
   const document = { getElementById: getEl, querySelector: (sel) => getEl("__sel__" + sel),
-    createElement: () => makeEl(),
+    createElement: () => makeEl(), documentElement: makeEl(),
     createTextNode: (t) => ({ nodeType: 3, textContent: String(t) }), execCommand: () => true, body: makeEl() };
+  document.documentElement.setAttribute = () => {};
   const navigator = { clipboard: { writeText: async () => {} } };
-  const ctx = { document, navigator, Blob: function(){}, URL: { createObjectURL: () => "blob:x" }, setTimeout, console, JSON };
+  const localStorage = { _m: {}, getItem(k){ return this._m[k] ?? null; }, setItem(k, v){ this._m[k] = v; } };
+  const ctx = { document, navigator, localStorage, Blob: function(){}, URL: { createObjectURL: () => "blob:x" }, setTimeout, console, JSON };
   ctx.window = ctx; ctx.window.isSecureContext = false;
   vm.createContext(ctx);
   let body = '"use strict";' + mainM[1];
@@ -84,6 +86,22 @@ test("most-used Project & team section precedes Engines", () => {
   const proj = html.indexOf("Project & team — most used");
   const eng = html.indexOf("Engines (--scanners)");
   assert.ok(proj > 0 && eng > 0 && proj < eng, "Project & team comes before Engines");
+});
+
+test("page has a theme picker (Light/Dark/System) and light-theme support", () => {
+  assert.match(html, /id="theme"/, "theme select present");
+  for (const v of ["system", "light", "dark"]) {
+    assert.ok(html.includes(`value="${v}"`), `theme option ${v}`);
+  }
+  assert.match(html, /prefers-color-scheme: light/, "auto light via prefers-color-scheme");
+  assert.match(html, /data-theme="light"/, "explicit light theme palette");
+  assert.match(html, /localStorage.getItem\("cxoo-theme"\)/, "theme persisted/initialised");
+});
+
+test("a dedicated CxSAST connection section exposes literal server + username fields", () => {
+  assert.match(html, /CxSAST connection — non-secret values/);
+  assert.match(html, /CxSAST server URL \(--sast-server\)/);
+  assert.match(html, /CxSAST username \(--sast-user\)/);
 });
 
 /* ---------- local runtimes ---------- */
@@ -232,6 +250,20 @@ test("CxSAST username goes on argv; password stays env-only", () => {
   assert.match(o, /--sast-user admin/);
   assert.ok(!o.includes("CXSAST_USERNAME"), "username not wired as env when passed directly");
   assert.match(o, /CXSAST_PASSWORD/, "password still referenced by env name");
+});
+
+test("literal CxSAST server URL + username both emit on argv", () => {
+  const c = fresh();
+  c.__state.sast.server = "http://cxsast.internal";
+  c.__state.sast.user = "svc-checkmarx";
+  const o = out(c);
+  assert.match(o, /--sast-server http:\/\/cxsast\.internal/);
+  assert.match(o, /--sast-user svc-checkmarx/);
+});
+
+test("blank CxSAST server falls back to the CXSAST_URL env var", () => {
+  const c = fresh(); c.__state.sast.server = "";
+  assert.match(out(c), /CXSAST_URL/);
 });
 
 test("real secrets are never given as direct VALUE flags (only by env name)", () => {
